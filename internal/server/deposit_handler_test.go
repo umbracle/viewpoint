@@ -10,6 +10,7 @@ import (
 func TestDepositHandler_Deposit(t *testing.T) {
 	node, err := newNode(NewEth1Server()...)
 	assert.NoError(t, err)
+	defer node.Stop()
 
 	handler, err := newDepositHandler(node.GetAddr(NodePortEth1Http))
 	assert.NoError(t, err)
@@ -18,13 +19,17 @@ func TestDepositHandler_Deposit(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEqual(t, code, "0x")
 
-	account := NewAccount()
+	round, numAccounts := 3, 5
+	for i := 0; i < round; i++ {
+		accounts := make([]*Account, numAccounts)
+		for j := 0; j < numAccounts; j++ {
+			accounts[j] = NewAccount()
+		}
+		err = handler.MakeDeposits(accounts)
+		assert.NoError(t, err)
+	}
 
-	err = handler.MakeDeposit(account)
+	count, err := handler.GetDepositCount()
 	assert.NoError(t, err)
-
-	contract := handler.GetDepositContract()
-	count, err := contract.GetDepositCount(ethgo.Latest)
-	assert.NoError(t, err)
-	assert.Equal(t, int(count[0]), 1)
+	assert.Equal(t, count, uint32(round*numAccounts))
 }
