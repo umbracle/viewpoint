@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net/http"
 	"time"
@@ -37,15 +38,9 @@ const (
 )
 
 func (e *depositHandler) fund(addr ethgo.Address) error {
-	nonce, err := e.client.Eth().GetNonce(addr, ethgo.Latest)
-	if err != nil {
-		return err
-	}
-
 	txn := &ethgo.Transaction{
 		From:     e.Owner(),
 		To:       &addr,
-		Nonce:    nonce,
 		GasPrice: defaultGasPrice,
 		Gas:      defaultGasLimit,
 		// fund the account with enoung balance to validate and send the transaction
@@ -126,6 +121,15 @@ func (e *depositHandler) GetDepositContract() *deposit.Deposit {
 	return deposit.NewDeposit(e.deposit, contract.WithJsonRPC(e.Provider().Eth()))
 }
 
+func (e *depositHandler) GetDepositCount() (uint32, error) {
+	contract := e.GetDepositContract()
+	count, err := contract.GetDepositCount(ethgo.Latest)
+	if err != nil {
+		return 0, err
+	}
+	return binary.LittleEndian.Uint32(count), nil
+}
+
 // MakeDeposits deposits the minimum required value to become a validator to multiple accounts
 func (e *depositHandler) MakeDeposits(accounts []*Account) error {
 	errCh := make(chan error, len(accounts))
@@ -163,13 +167,19 @@ func (e *depositHandler) MakeDeposit(account *Account) error {
 	if err != nil {
 		return err
 	}
-	txn.WithOpts(&contract.TxnOpts{Value: ethgo.Ether(depositAmount)})
+	// gas limit must be hardcoded since the estimate gas limit might not be enough with multiple
+	// async deposits (small changes in the smart contract change the estimation).
+	txn.WithOpts(&contract.TxnOpts{GasLimit: defaultGasLimit, Value: ethgo.Ether(depositAmount)})
 
 	if err := txn.Do(); err != nil {
 		return err
 	}
-	if _, err := txn.Wait(); err != nil {
+	receipt, err := txn.Wait()
+	if err != nil {
 		return err
+	}
+	if len(receipt.Logs) != 1 {
+		return fmt.Errorf("log not found")
 	}
 	return nil
 }
