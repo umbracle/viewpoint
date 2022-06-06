@@ -53,6 +53,7 @@ type node struct {
 	ports      map[NodePort]uint64
 	waitCh     chan struct{}
 	exitResult *exitResult
+	mountMap   map[string]string
 }
 
 type nodeOption func(*nodeOpts)
@@ -229,11 +230,12 @@ func newNode(opts ...nodeOption) (*node, error) {
 	}
 
 	n := &node{
-		cli:    cli,
-		opts:   nOpts,
-		ip:     "127.0.0.1",
-		ports:  map[NodePort]uint64{},
-		waitCh: make(chan struct{}),
+		cli:      cli,
+		opts:     nOpts,
+		ip:       "127.0.0.1",
+		ports:    map[NodePort]uint64{},
+		waitCh:   make(chan struct{}),
+		mountMap: mountMap,
 	}
 
 	// build CLI arguments which might include template arguments

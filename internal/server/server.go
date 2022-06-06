@@ -197,6 +197,8 @@ func (s *Server) DeployNode(ctx context.Context, req *proto.DeployNodeRequest) (
 	}
 
 	s.nodes = append(s.nodes, node)
+
+	s.logger.Info("beacon node started", "client", req.NodeClient, "mount-map", node.mountMap)
 	return &proto.DeployNodeResponse{}, nil
 }
 
