@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package proto;
+
+option go_package = "/internal/testutil/proto";
+
+service E2EService {
+    rpc DeployNode(DeployNodeRequest) returns (DeployNodeResponse);
+    rpc DeployValidator(DeployValidatorRequest) returns (DeployValidatorResponse);
+}
+
+message DeployNodeRequest {
+    NodeClient nodeClient = 1;
+}
+
+message DeployNodeResponse {
+
+}
+
+message DeployValidatorRequest {
+    uint64 numValidators = 1;
+    NodeClient nodeClient = 2;
+}
+
+message DeployValidatorResponse {
+
+}
+
+enum NodeType {
+    Other = 0;
+    Beacon = 1;
+    Validator = 2;
+    Bootnode = 3;
+}
+
+enum NodeClient {
+    Prysm = 0; 
+    Teku  = 1;
+    Lighthouse = 2;
+}
