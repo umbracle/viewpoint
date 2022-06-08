@@ -26,6 +26,7 @@ func NewPrysmBeacon(config *BeaconConfig) ([]nodeOption, error) {
 		"--grpc-gateway-port", `{{ Port "eth2.http" }}`,
 		// config
 		"--chain-config-file", "/data/config.yaml",
+		"--genesis-state", "/data/genesis.ssz",
 		// accept terms and conditions
 		"--accept-terms-of-use",
 		// use data dir
@@ -48,6 +49,7 @@ func NewPrysmBeacon(config *BeaconConfig) ([]nodeOption, error) {
 		WithCmd(cmd),
 		WithMount("/data"),
 		WithFile("/data/config.yaml", config.Spec),
+		WithFile("/data/genesis.ssz", config.GenesisSSZ),
 	}
 	return opts, nil
 }

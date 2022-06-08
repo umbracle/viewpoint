@@ -36,6 +36,7 @@ func NewLighthouseBeacon(config *BeaconConfig) ([]nodeOption, error) {
 		WithCmd(cmd),
 		WithMount("/data"),
 		WithFile("/data/config.yaml", config.Spec),
+		WithFile("/data/genesis.ssz", config.GenesisSSZ),
 		WithFile("/data/deploy_block.txt", "0"),
 	}
 	if config.Bootnode != "" {
