@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/umbracle/ethgo"
+	"github.com/umbracle/viewpoint/internal/server/proto"
 )
 
 func TestDepositHandler_Deposit(t *testing.T) {
@@ -21,9 +22,9 @@ func TestDepositHandler_Deposit(t *testing.T) {
 
 	round, numAccounts := 3, 5
 	for i := 0; i < round; i++ {
-		accounts := make([]*Account, numAccounts)
+		accounts := make([]*proto.Account, numAccounts)
 		for j := 0; j < numAccounts; j++ {
-			accounts[j] = NewAccount()
+			accounts[j] = proto.NewAccount()
 		}
 		err = handler.MakeDeposits(accounts)
 		assert.NoError(t, err)

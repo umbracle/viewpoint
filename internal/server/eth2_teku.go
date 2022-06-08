@@ -18,6 +18,8 @@ func NewTekuBeacon(config *BeaconConfig) ([]nodeOption, error) {
 		"--rest-api-enabled",
 		// config
 		"--network", "/data/config.yaml",
+		// initial state
+		"--initial-state", "/data/genesis.ssz",
 		// port
 		"--rest-api-port", `{{ Port "eth2.http" }}`,
 		// logs
@@ -37,6 +39,7 @@ func NewTekuBeacon(config *BeaconConfig) ([]nodeOption, error) {
 		WithCmd(cmd),
 		WithMount("/data"),
 		WithFile("/data/config.yaml", config.Spec),
+		WithFile("/data/genesis.ssz", config.GenesisSSZ),
 		WithUser("0:0"),
 	}
 	return opts, nil

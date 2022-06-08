@@ -12,6 +12,9 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/umbracle/ethgo"
+	"github.com/umbracle/ethgo/jsonrpc"
+	"github.com/umbracle/viewpoint/internal/genesis"
 	"github.com/umbracle/viewpoint/internal/http"
 	"github.com/umbracle/viewpoint/internal/server/proto"
 	"google.golang.org/grpc"
@@ -29,6 +32,10 @@ type Server struct {
 	fileLogger *fileLogger
 	nodes      []*node
 	bootnode   *Bootnode
+
+	// genesis data
+	genesisSSZ      []byte
+	genesisAccounts []*proto.Account
 }
 
 func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
@@ -37,6 +44,29 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		return nil, err
 	}
 	bootnode, err := NewBootnode()
+	if err != nil {
+		return nil, err
+	}
+
+	// get latest block
+	provider, err := jsonrpc.NewClient(eth1.GetAddr(NodePortEth1Http))
+	if err != nil {
+		return nil, err
+	}
+	block, err := provider.Eth().GetBlockByNumber(ethgo.Latest, true)
+	if err != nil {
+		return nil, err
+	}
+
+	accounts := proto.NewAccounts(config.Spec.GenesisValidatorCount)
+
+	genesisInit := config.Spec.MinGenesisTime
+
+	state, err := genesis.GenerateGenesis(block, int64(genesisInit), accounts)
+	if err != nil {
+		return nil, err
+	}
+	genesisSSZ, err := state.MarshalSSZ()
 	if err != nil {
 		return nil, err
 	}
@@ -66,12 +96,17 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 			eth1,
 			bootnode.node,
 		},
-		fileLogger:     &fileLogger{path: dataPath},
-		bootnode:       bootnode,
-		depositHandler: depositHandler,
+		genesisAccounts: accounts,
+		fileLogger:      &fileLogger{path: dataPath},
+		bootnode:        bootnode,
+		depositHandler:  depositHandler,
+		genesisSSZ:      genesisSSZ,
 	}
 
 	if err := srv.writeFile("spec.yaml", config.Spec.buildConfig()); err != nil {
+		return nil, err
+	}
+	if err := srv.writeFile("genesis.ssz", genesisSSZ); err != nil {
 		return nil, err
 	}
 
@@ -136,8 +171,9 @@ func (s *Server) DeployNode(ctx context.Context, req *proto.DeployNodeRequest) (
 	useBootnode := true
 
 	bCfg := &BeaconConfig{
-		Spec: s.config.Spec,
-		Eth1: s.eth1.GetAddr(NodePortEth1Http),
+		Spec:       s.config.Spec,
+		Eth1:       s.eth1.GetAddr(NodePortEth1Http),
+		GenesisSSZ: s.genesisSSZ,
 	}
 
 	if !useBootnode {
@@ -202,6 +238,13 @@ func (s *Server) DeployNode(ctx context.Context, req *proto.DeployNodeRequest) (
 	return &proto.DeployNodeResponse{}, nil
 }
 
+func min(i, j int) int {
+	if i < j {
+		return i
+	}
+	return j
+}
+
 func (s *Server) DeployValidator(ctx context.Context, req *proto.DeployValidatorRequest) (*proto.DeployValidatorResponse, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -219,13 +262,14 @@ func (s *Server) DeployValidator(ctx context.Context, req *proto.DeployValidator
 
 	beacon := beacons[0]
 
-	var accounts []*Account
-	for i := 0; i < int(req.NumValidators); i++ {
-		accounts = append(accounts, NewAccount())
+	// deploy from genesis accounts
+	pickNumAccounts := min(int(req.NumValidators), len(s.genesisAccounts))
+	if pickNumAccounts == 0 {
+		return nil, fmt.Errorf("there are no more genesis accounts to use")
 	}
-	if err := s.depositHandler.MakeDeposits(accounts); err != nil {
-		return nil, err
-	}
+
+	var accounts []*proto.Account
+	accounts, s.genesisAccounts = s.genesisAccounts[:pickNumAccounts], s.genesisAccounts[pickNumAccounts:]
 
 	indx := len(s.nodes)
 

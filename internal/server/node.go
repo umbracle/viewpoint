@@ -32,7 +32,7 @@ type nodeOpts struct {
 	Retry      func(n *node) error
 	Name       string
 	Mount      []string
-	Files      map[string]string
+	Files      map[string][]byte
 	Logger     hclog.Logger
 	Output     []io.Writer
 	Labels     map[string]string
@@ -143,14 +143,14 @@ func WithFile(path string, obj interface{}) nodeOption {
 		if err != nil {
 			panic(err)
 		}
-		n.Files[path] = string(data)
+		n.Files[path] = data
 	}
 }
 
 func newNode(opts ...nodeOption) (*node, error) {
 	nOpts := &nodeOpts{
 		Mount:  []string{},
-		Files:  map[string]string{},
+		Files:  map[string][]byte{},
 		Cmd:    []string{},
 		Logger: hclog.L(),
 		Output: []io.Writer{},
@@ -209,7 +209,7 @@ func newNode(opts ...nodeOption) (*node, error) {
 		if err := os.MkdirAll(parentDir, 0700); err != nil {
 			return nil, err
 		}
-		if err := ioutil.WriteFile(localPath, []byte(content), 0644); err != nil {
+		if err := ioutil.WriteFile(localPath, content, 0644); err != nil {
 			return nil, err
 		}
 	}

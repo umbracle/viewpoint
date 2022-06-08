@@ -10,6 +10,7 @@ import (
 	"github.com/umbracle/ethgo/contract"
 	"github.com/umbracle/ethgo/jsonrpc"
 	"github.com/umbracle/viewpoint/internal/deposit"
+	"github.com/umbracle/viewpoint/internal/server/proto"
 )
 
 // depositHandler is an eth1x testutil server using go-ethereum
@@ -131,10 +132,10 @@ func (e *depositHandler) GetDepositCount() (uint32, error) {
 }
 
 // MakeDeposits deposits the minimum required value to become a validator to multiple accounts
-func (e *depositHandler) MakeDeposits(accounts []*Account) error {
+func (e *depositHandler) MakeDeposits(accounts []*proto.Account) error {
 	errCh := make(chan error, len(accounts))
 	for _, acct := range accounts {
-		go func(acct *Account) {
+		go func(acct *proto.Account) {
 			errCh <- e.MakeDeposit(acct)
 		}(acct)
 	}
@@ -148,7 +149,7 @@ func (e *depositHandler) MakeDeposits(accounts []*Account) error {
 }
 
 // MakeDeposit deposits the minimum required value to become a validator
-func (e *depositHandler) MakeDeposit(account *Account) error {
+func (e *depositHandler) MakeDeposit(account *proto.Account) error {
 	depositAmount := deposit.MinGweiAmount
 
 	// fund the owner address
