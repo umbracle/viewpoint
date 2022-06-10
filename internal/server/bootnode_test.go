@@ -7,7 +7,10 @@ import (
 )
 
 func TestBootnode(t *testing.T) {
-	b, err := NewBootnode()
+	d, err := NewDocker()
+	assert.NoError(t, err)
+
+	b, err := NewBootnode(d)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, b.Enr)
 }

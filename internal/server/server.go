@@ -28,6 +28,9 @@ type Server struct {
 	eth1           *node
 	depositHandler *depositHandler
 
+	// runtime to deploy containers
+	docker *Docker
+
 	lock       sync.Mutex
 	fileLogger *fileLogger
 	nodes      []*node
@@ -39,11 +42,16 @@ type Server struct {
 }
 
 func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
-	eth1, err := newNode(NewEth1Server()...)
+	docker, err := NewDocker()
 	if err != nil {
 		return nil, err
 	}
-	bootnode, err := NewBootnode()
+
+	eth1, err := docker.Deploy(NewEth1Server()...)
+	if err != nil {
+		return nil, err
+	}
+	bootnode, err := NewBootnode(docker)
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +100,7 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		config: config,
 		logger: logger,
 		eth1:   eth1,
+		docker: docker,
 		nodes: []*node{
 			eth1,
 			bootnode.node,
@@ -227,7 +236,7 @@ func (s *Server) DeployNode(ctx context.Context, req *proto.DeployNodeRequest) (
 	}
 	genOpts = append(genOpts, opts...)
 
-	node, err := newNode(genOpts...)
+	node, err := s.docker.Deploy(genOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +318,7 @@ func (s *Server) DeployValidator(ctx context.Context, req *proto.DeployValidator
 	}
 	genOpts = append(genOpts, opts...)
 
-	node, err := newNode(genOpts...)
+	node, err := s.docker.Deploy(genOpts...)
 	if err != nil {
 		return nil, err
 	}
