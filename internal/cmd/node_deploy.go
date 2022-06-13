@@ -19,6 +19,9 @@ type NodeDeployCommand struct {
 	withDeposit bool
 
 	count uint64
+
+	repo string
+	tag  string
 }
 
 // Help implements the cli.Command interface
@@ -41,6 +44,8 @@ func (c *NodeDeployCommand) Run(args []string) int {
 	flags.BoolVar(&c.beaconNode, "beacon-node", false, "")
 	flags.BoolVar(&c.withDeposit, "with-deposit", false, "")
 	flags.Uint64Var(&c.count, "count", 1, "")
+	flags.StringVar(&c.repo, "repo", "", "")
+	flags.StringVar(&c.tag, "tag", "", "")
 
 	if err := flags.Parse(args); err != nil {
 		c.UI.Error(err.Error())
@@ -58,26 +63,27 @@ func (c *NodeDeployCommand) Run(args []string) int {
 		return 1
 	}
 
-	var req *proto.NodeDeployRequest
+	var reqJob proto.IsNodeDeployRequest_NodeType
 	if c.beaconNode {
-		req = &proto.NodeDeployRequest{
-			NodeClient: typ,
-			NodeType: &proto.NodeDeployRequest_Beacon_{
-				Beacon: &proto.NodeDeployRequest_Beacon{},
-			},
+		reqJob = &proto.NodeDeployRequest_Beacon_{
+			Beacon: &proto.NodeDeployRequest_Beacon{},
 		}
 	} else if c.validator {
-		req = &proto.NodeDeployRequest{
-			NodeClient: typ,
-			NodeType: &proto.NodeDeployRequest_Validator_{
-				Validator: &proto.NodeDeployRequest_Validator{
-					NumValidators: c.numValidators,
-					WithDeposit:   c.withDeposit,
-				},
+		reqJob = &proto.NodeDeployRequest_Validator_{
+			Validator: &proto.NodeDeployRequest_Validator{
+				NumValidators: c.numValidators,
+				WithDeposit:   c.withDeposit,
 			},
 		}
 	} else {
 		c.UI.Output("either --validator or --beacon-node must be set")
+	}
+
+	req := &proto.NodeDeployRequest{
+		NodeClient: typ,
+		Repo:       c.repo,
+		Tag:        c.tag,
+		NodeType:   reqJob,
 	}
 
 	for i := 0; i < int(c.count); i++ {

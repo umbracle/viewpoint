@@ -194,6 +194,13 @@ func (s *Server) NodeDeploy(ctx context.Context, req *proto.NodeDeployRequest) (
 		spec.WithName(name).
 			WithOutput(fLogger)
 
+		if req.Repo != "" {
+			spec = spec.WithContainer(req.Repo)
+		}
+		if req.Tag != "" {
+			spec = spec.WithTag(req.Tag)
+		}
+
 		node, err := s.docker.Deploy(spec)
 		if err != nil {
 			return nil, err

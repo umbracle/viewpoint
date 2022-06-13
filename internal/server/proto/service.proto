@@ -13,6 +13,8 @@ service E2EService {
 message NodeDeployRequest {
     string name = 1;
     NodeClient nodeClient = 2;
+    string repo = 3;
+    string tag = 4;
     
     oneof NodeType {
         Beacon beacon = 20;

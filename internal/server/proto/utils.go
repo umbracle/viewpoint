@@ -59,3 +59,7 @@ type BeaconConfig struct {
 type CreateBeacon2 func(cfg *BeaconConfig) (*spec.Spec, error)
 
 type CreateValidator2 func(cfg *ValidatorConfig) (*spec.Spec, error)
+
+type IsNodeDeployRequest_NodeType interface {
+	isNodeDeployRequest_NodeType
+}
