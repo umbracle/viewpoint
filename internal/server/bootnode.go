@@ -10,12 +10,12 @@ var (
 )
 
 type Bootnode struct {
-	*node
+	*Spec
 
 	Enr string
 }
 
-func NewBootnode(d *Docker) (*Bootnode, error) {
+func NewBootnode() *Bootnode {
 	decodeEnr := func(node *node) (string, error) {
 		logs, err := node.GetLogs()
 		if err != nil {
@@ -36,28 +36,21 @@ func NewBootnode(d *Docker) (*Bootnode, error) {
 		"--discv5-port", "3000",
 	}
 
-	nodeENR := ""
-	opts := []nodeOption{
-		WithName("bootnode"),
-		WithCmd(cmd),
-		WithContainer("gcr.io/prysmaticlabs/prysm/bootnode"),
+	b := &Bootnode{}
+
+	spec := &Spec{}
+	spec.WithName("bootnode").
+		WithCmd(cmd).
+		WithContainer("gcr.io/prysmaticlabs/prysm/bootnode").
 		WithRetry(func(n *node) error {
 			enr, err := decodeEnr(n)
 			if err != nil {
 				return err
 			}
-			nodeENR = enr
+			b.Enr = enr
 			return nil
-		}),
-	}
+		})
 
-	node, err := d.Deploy(opts...)
-	if err != nil {
-		return nil, err
-	}
-	b := &Bootnode{
-		Enr:  nodeENR,
-		node: node,
-	}
-	return b, nil
+	b.Spec = spec
+	return b
 }

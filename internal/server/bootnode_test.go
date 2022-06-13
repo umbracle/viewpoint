@@ -10,7 +10,10 @@ func TestBootnode(t *testing.T) {
 	d, err := NewDocker()
 	assert.NoError(t, err)
 
-	b, err := NewBootnode(d)
+	bootnode := NewBootnode()
+
+	_, err = d.Deploy(bootnode.Spec)
 	assert.NoError(t, err)
-	assert.NotEmpty(t, b.Enr)
+
+	assert.NotEmpty(t, bootnode.Enr)
 }

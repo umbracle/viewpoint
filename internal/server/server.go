@@ -31,10 +31,10 @@ type Server struct {
 	// runtime to deploy containers
 	docker *Docker
 
-	lock       sync.Mutex
-	fileLogger *fileLogger
-	nodes      []*node
-	bootnode   *Bootnode
+	lock        sync.Mutex
+	fileLogger  *fileLogger
+	nodes       []*node
+	bootnodeENR string
 
 	// genesis data
 	genesisSSZ      []byte
@@ -47,11 +47,12 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		return nil, err
 	}
 
-	eth1, err := docker.Deploy(NewEth1Server()...)
+	eth1, err := docker.Deploy(NewEth1Server())
 	if err != nil {
 		return nil, err
 	}
-	bootnode, err := NewBootnode(docker)
+	bootnodeSpec := NewBootnode()
+	bootnode, err := docker.Deploy(bootnodeSpec.Spec)
 	if err != nil {
 		return nil, err
 	}
@@ -103,11 +104,11 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		docker: docker,
 		nodes: []*node{
 			eth1,
-			bootnode.node,
+			bootnode,
 		},
 		genesisAccounts: accounts,
 		fileLogger:      &fileLogger{path: dataPath},
-		bootnode:        bootnode,
+		bootnodeENR:     bootnodeSpec.Enr,
 		depositHandler:  depositHandler,
 		genesisSSZ:      genesisSSZ,
 	}
@@ -163,7 +164,7 @@ func (s *Server) Stop() {
 	}
 }
 
-func (s *Server) filterLocked(cond func(opts *nodeOpts) bool) []*node {
+func (s *Server) filterLocked(cond func(opts *Spec) bool) []*node {
 	res := []*node{}
 	for _, i := range s.nodes {
 		if cond(i.opts) {
@@ -195,7 +196,7 @@ func (s *Server) DeployNode(ctx context.Context, req *proto.DeployNodeRequest) (
 			bCfg.Bootnode = identity.ENR
 		}
 	} else {
-		bCfg.Bootnode = s.bootnode.Enr
+		bCfg.Bootnode = s.bootnodeENR
 	}
 
 	var beaconFactory CreateBeacon2
@@ -219,7 +220,7 @@ func (s *Server) DeployNode(ctx context.Context, req *proto.DeployNodeRequest) (
 	if err != nil {
 		return nil, err
 	}
-	opts, err := beaconFactory(bCfg)
+	spec, err := beaconFactory(bCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -229,14 +230,11 @@ func (s *Server) DeployNode(ctx context.Context, req *proto.DeployNodeRequest) (
 		"type":     "beacon",
 		"ensemble": s.config.Name,
 	}
-	genOpts := []nodeOption{
-		WithName(name),
-		WithOutput(fLogger),
-		WithLabels(labels),
-	}
-	genOpts = append(genOpts, opts...)
+	spec.WithName(name).
+		WithOutput(fLogger).
+		WithLabels(labels)
 
-	node, err := s.docker.Deploy(genOpts...)
+	node, err := s.docker.Deploy(spec)
 	if err != nil {
 		return nil, err
 	}
@@ -262,8 +260,8 @@ func (s *Server) DeployValidator(ctx context.Context, req *proto.DeployValidator
 		return nil, fmt.Errorf("no number of validators provided")
 	}
 
-	beacons := s.filterLocked(func(opts *nodeOpts) bool {
-		return opts.NodeType == proto.NodeType_Beacon && opts.NodeClient == req.NodeClient
+	beacons := s.filterLocked(func(spec *Spec) bool {
+		return spec.NodeType == proto.NodeType_Beacon && spec.NodeClient == req.NodeClient
 	})
 	if len(beacons) == 0 {
 		return nil, fmt.Errorf("no beacon node found for client %s", req.NodeClient.String())
@@ -308,17 +306,13 @@ func (s *Server) DeployValidator(ctx context.Context, req *proto.DeployValidator
 		return nil, fmt.Errorf("validator client %s not found", req.NodeClient)
 	}
 
-	opts, err := validatorFactory(vCfg)
+	spec, err := validatorFactory(vCfg)
 	if err != nil {
 		return nil, err
 	}
-	genOpts := []nodeOption{
-		WithName(name),
-		WithOutput(fLogger),
-	}
-	genOpts = append(genOpts, opts...)
+	spec.WithName(name).WithOutput(fLogger)
 
-	node, err := s.docker.Deploy(genOpts...)
+	node, err := s.docker.Deploy(spec)
 	if err != nil {
 		return nil, err
 	}
@@ -357,3 +351,20 @@ func (f *fileLogger) Close() error {
 	}
 	return nil
 }
+
+type ValidatorConfig struct {
+	Spec     *Eth2Spec
+	Accounts []*proto.Account
+	Beacon   *node
+}
+
+type BeaconConfig struct {
+	Spec       *Eth2Spec
+	Eth1       string
+	Bootnode   string
+	GenesisSSZ []byte
+}
+
+type CreateBeacon2 func(cfg *BeaconConfig) (*Spec, error)
+
+type CreateValidator2 func(cfg *ValidatorConfig) (*Spec, error)

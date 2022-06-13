@@ -8,7 +8,7 @@ import (
 )
 
 // NewLighthouseBeacon creates a new prysm server
-func NewLighthouseBeacon(config *BeaconConfig) ([]nodeOption, error) {
+func NewLighthouseBeacon(config *BeaconConfig) (*Spec, error) {
 	cmd := []string{
 		"lighthouse", "beacon_node",
 		"--http", "--http-address", "0.0.0.0",
@@ -28,24 +28,24 @@ func NewLighthouseBeacon(config *BeaconConfig) ([]nodeOption, error) {
 		"--disable-packet-filter",
 		"--enable-private-discovery",
 	}
-	opts := []nodeOption{
-		WithNodeClient(proto.NodeClient_Lighthouse),
-		WithNodeType(proto.NodeType_Beacon),
-		WithContainer("sigp/lighthouse"),
-		WithTag("v2.2.1"),
-		WithCmd(cmd),
-		WithMount("/data"),
-		WithFile("/data/config.yaml", config.Spec),
-		WithFile("/data/genesis.ssz", config.GenesisSSZ),
-		WithFile("/data/deploy_block.txt", "0"),
-	}
+	spec := &Spec{}
+	spec.WithNodeClient(proto.NodeClient_Lighthouse).
+		WithNodeType(proto.NodeType_Beacon).
+		WithContainer("sigp/lighthouse").
+		WithTag("v2.2.1").
+		WithCmd(cmd).
+		WithMount("/data").
+		WithFile("/data/config.yaml", config.Spec).
+		WithFile("/data/genesis.ssz", config.GenesisSSZ).
+		WithFile("/data/deploy_block.txt", "0")
+
 	if config.Bootnode != "" {
-		opts = append(opts, WithFile("/data/boot_enr.yaml", "- "+config.Bootnode+"\n"))
+		spec.WithFile("/data/boot_enr.yaml", "- "+config.Bootnode+"\n")
 	}
-	return opts, nil
+	return spec, nil
 }
 
-func NewLighthouseValidator(config *ValidatorConfig) ([]nodeOption, error) {
+func NewLighthouseValidator(config *ValidatorConfig) (*Spec, error) {
 	cmd := []string{
 		"lighthouse", "vc",
 		"--debug-level", "debug",
@@ -54,16 +54,15 @@ func NewLighthouseValidator(config *ValidatorConfig) ([]nodeOption, error) {
 		"--testnet-dir", "/data",
 		"--init-slashing-protection",
 	}
-	opts := []nodeOption{
-		WithNodeClient(proto.NodeClient_Lighthouse),
-		WithNodeType(proto.NodeType_Validator),
-		WithContainer("sigp/lighthouse"),
-		WithTag("v2.2.1"),
-		WithCmd(cmd),
-		WithMount("/data"),
-		WithFile("/data/config.yaml", config.Spec),
-		WithFile("/data/deploy_block.txt", "0"),
-	}
+	spec := &Spec{}
+	spec.WithNodeClient(proto.NodeClient_Lighthouse).
+		WithNodeType(proto.NodeType_Validator).
+		WithContainer("sigp/lighthouse").
+		WithTag("v2.2.1").
+		WithCmd(cmd).
+		WithMount("/data").
+		WithFile("/data/config.yaml", config.Spec).
+		WithFile("/data/deploy_block.txt", "0")
 
 	// append validators
 	for _, acct := range config.Accounts {
@@ -75,10 +74,8 @@ func NewLighthouseValidator(config *ValidatorConfig) ([]nodeOption, error) {
 			return nil, err
 		}
 
-		opts = append(opts, []nodeOption{
-			WithFile("/data/node/validators/"+pubStr+"/voting-keystore.json", keystore),
-			WithFile("/data/node/secrets/"+pubStr, defWalletPassword),
-		}...)
+		spec.WithFile("/data/node/validators/"+pubStr+"/voting-keystore.json", keystore).
+			WithFile("/data/node/secrets/"+pubStr, defWalletPassword)
 	}
-	return opts, nil
+	return spec, nil
 }

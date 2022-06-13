@@ -12,7 +12,7 @@ func TestDepositHandler_Deposit(t *testing.T) {
 	d, err := NewDocker()
 	assert.NoError(t, err)
 
-	node, err := d.Deploy(NewEth1Server()...)
+	node, err := d.Deploy(NewEth1Server())
 	assert.NoError(t, err)
 	defer node.Stop()
 

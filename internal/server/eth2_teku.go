@@ -8,7 +8,7 @@ import (
 )
 
 // NewTekuBeacon creates a new teku server
-func NewTekuBeacon(config *BeaconConfig) ([]nodeOption, error) {
+func NewTekuBeacon(config *BeaconConfig) (*Spec, error) {
 	cmd := []string{
 		// debug log
 		"--logging", "debug",
@@ -31,21 +31,21 @@ func NewTekuBeacon(config *BeaconConfig) ([]nodeOption, error) {
 		cmd = append(cmd, "--p2p-discovery-bootnodes", config.Bootnode)
 	}
 
-	opts := []nodeOption{
-		WithNodeClient(proto.NodeClient_Teku),
-		WithNodeType(proto.NodeType_Beacon),
-		WithContainer("consensys/teku"),
-		WithTag("22.4.0"),
-		WithCmd(cmd),
-		WithMount("/data"),
-		WithFile("/data/config.yaml", config.Spec),
-		WithFile("/data/genesis.ssz", config.GenesisSSZ),
-		WithUser("0:0"),
-	}
-	return opts, nil
+	spec := &Spec{}
+	spec.WithNodeClient(proto.NodeClient_Teku).
+		WithNodeType(proto.NodeType_Beacon).
+		WithContainer("consensys/teku").
+		WithTag("22.4.0").
+		WithCmd(cmd).
+		WithMount("/data").
+		WithFile("/data/config.yaml", config.Spec).
+		WithFile("/data/genesis.ssz", config.GenesisSSZ).
+		WithUser("0:0")
+
+	return spec, nil
 }
 
-func NewTekuValidator(config *ValidatorConfig) ([]nodeOption, error) {
+func NewTekuValidator(config *ValidatorConfig) (*Spec, error) {
 	cmd := []string{
 		"vc",
 		// beacon api
@@ -57,16 +57,15 @@ func NewTekuValidator(config *ValidatorConfig) ([]nodeOption, error) {
 		// keys
 		"--validator-keys", "/data/keys:/data/pass",
 	}
-	opts := []nodeOption{
-		WithNodeClient(proto.NodeClient_Teku),
-		WithNodeType(proto.NodeType_Validator),
-		WithContainer("consensys/teku"),
-		WithTag("22.4.0"),
-		WithCmd(cmd),
-		WithMount("/data"),
-		WithFile("/data/config.yaml", config.Spec),
-		WithUser("0:0"),
-	}
+	spec := &Spec{}
+	spec.WithNodeClient(proto.NodeClient_Teku).
+		WithNodeType(proto.NodeType_Validator).
+		WithContainer("consensys/teku").
+		WithTag("22.4.0").
+		WithCmd(cmd).
+		WithMount("/data").
+		WithFile("/data/config.yaml", config.Spec).
+		WithUser("0:0")
 
 	for indx, acct := range config.Accounts {
 		keystore, err := bls.ToKeystore(acct.Bls, defWalletPassword)
@@ -75,10 +74,8 @@ func NewTekuValidator(config *ValidatorConfig) ([]nodeOption, error) {
 		}
 
 		name := fmt.Sprintf("account_%d", indx)
-		opts = append(opts, []nodeOption{
-			WithFile("/data/keys/"+name+".json", keystore),
-			WithFile("/data/pass/"+name+".txt", defWalletPassword),
-		}...)
+		spec.WithFile("/data/keys/"+name+".json", keystore).
+			WithFile("/data/pass/"+name+".txt", defWalletPassword)
 	}
-	return opts, nil
+	return spec, nil
 }

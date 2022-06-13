@@ -10,7 +10,7 @@ import (
 )
 
 // NewPrysmBeacon creates a new prysm server
-func NewPrysmBeacon(config *BeaconConfig) ([]nodeOption, error) {
+func NewPrysmBeacon(config *BeaconConfig) (*Spec, error) {
 	cmd := []string{
 		"--verbosity", "debug",
 		// eth1x
@@ -41,22 +41,22 @@ func NewPrysmBeacon(config *BeaconConfig) ([]nodeOption, error) {
 	if config.Bootnode != "" {
 		cmd = append(cmd, "--bootstrap-node", config.Bootnode)
 	}
-	opts := []nodeOption{
-		WithNodeClient(proto.NodeClient_Prysm),
-		WithNodeType(proto.NodeType_Beacon),
-		WithContainer("gcr.io/prysmaticlabs/prysm/beacon-chain"),
-		WithTag("v2.0.6"),
-		WithCmd(cmd),
-		WithMount("/data"),
-		WithFile("/data/config.yaml", config.Spec),
-		WithFile("/data/genesis.ssz", config.GenesisSSZ),
-	}
-	return opts, nil
+	spec := &Spec{}
+	spec.WithNodeClient(proto.NodeClient_Prysm).
+		WithNodeType(proto.NodeType_Beacon).
+		WithContainer("gcr.io/prysmaticlabs/prysm/beacon-chain").
+		WithTag("v2.0.6").
+		WithCmd(cmd).
+		WithMount("/data").
+		WithFile("/data/config.yaml", config.Spec).
+		WithFile("/data/genesis.ssz", config.GenesisSSZ)
+
+	return spec, nil
 }
 
 const defWalletPassword = "qwerty"
 
-func NewPrysmValidator(config *ValidatorConfig) ([]nodeOption, error) {
+func NewPrysmValidator(config *ValidatorConfig) (*Spec, error) {
 	store := &accountStore{}
 	for _, acct := range config.Accounts {
 		store.AddKey(acct.Bls)
@@ -79,18 +79,18 @@ func NewPrysmValidator(config *ValidatorConfig) ([]nodeOption, error) {
 		// config
 		"--chain-config-file", "/data/config.yaml",
 	}
-	opts := []nodeOption{
-		WithNodeClient(proto.NodeClient_Prysm),
-		WithNodeType(proto.NodeType_Validator),
-		WithContainer("gcr.io/prysmaticlabs/prysm/validator"),
-		WithTag("v2.0.6"),
-		WithCmd(cmd),
-		WithMount("/data"),
-		WithFile("/data/direct/accounts/all-accounts.keystore.json", keystore),
-		WithFile("/data/wallet-password.txt", defWalletPassword),
-		WithFile("/data/config.yaml", config.Spec),
-	}
-	return opts, nil
+	spec := &Spec{}
+	spec.WithNodeClient(proto.NodeClient_Prysm).
+		WithNodeType(proto.NodeType_Validator).
+		WithContainer("gcr.io/prysmaticlabs/prysm/validator").
+		WithTag("v2.0.6").
+		WithCmd(cmd).
+		WithMount("/data").
+		WithFile("/data/direct/accounts/all-accounts.keystore.json", keystore).
+		WithFile("/data/wallet-password.txt", defWalletPassword).
+		WithFile("/data/config.yaml", config.Spec)
+
+	return spec, nil
 }
 
 // accountStore is the format used by all managers??
