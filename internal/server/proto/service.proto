@@ -2,11 +2,13 @@ syntax = "proto3";
 
 package proto;
 
-option go_package = "/internal/testutil/proto";
+option go_package = "/internal/server/proto";
 
 service E2EService {
     rpc DeployNode(DeployNodeRequest) returns (DeployNodeResponse);
     rpc DeployValidator(DeployValidatorRequest) returns (DeployValidatorResponse);
+    rpc NodeList(NodeListRequest) returns (NodeListResponse);
+    rpc NodeStatus(NodeStatusRequest) returns (NodeStatusResponse);
 }
 
 message DeployNodeRequest {
@@ -26,15 +28,38 @@ message DeployValidatorResponse {
 
 }
 
+message NodeListRequest {
+}
+
+message NodeListResponse {
+    repeated Node node = 1;
+}
+
+message NodeStatusRequest {
+    string name = 1;
+}
+
+message NodeStatusResponse {
+    Node node = 1;
+}
+
+message Node {
+    string name = 1;
+    NodeType type = 2;
+    NodeClient client = 3;
+    map<string,string> labels = 4;
+}
+
 enum NodeType {
-    Other = 0;
+    OtherType = 0;
     Beacon = 1;
     Validator = 2;
     Bootnode = 3;
 }
 
 enum NodeClient {
-    Prysm = 0; 
-    Teku  = 1;
-    Lighthouse = 2;
+    OtherClient = 0;
+    Prysm = 1; 
+    Teku  = 2;
+    Lighthouse = 3;
 }
