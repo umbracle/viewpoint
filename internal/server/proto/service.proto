@@ -5,27 +5,31 @@ package proto;
 option go_package = "/internal/server/proto";
 
 service E2EService {
-    rpc DeployNode(DeployNodeRequest) returns (DeployNodeResponse);
-    rpc DeployValidator(DeployValidatorRequest) returns (DeployValidatorResponse);
+    rpc NodeDeploy(NodeDeployRequest) returns (NodeDeployResponse);
     rpc NodeList(NodeListRequest) returns (NodeListResponse);
     rpc NodeStatus(NodeStatusRequest) returns (NodeStatusResponse);
 }
 
-message DeployNodeRequest {
-    NodeClient nodeClient = 1;
-}
-
-message DeployNodeResponse {
-
-}
-
-message DeployValidatorRequest {
-    uint64 numValidators = 1;
+message NodeDeployRequest {
+    string name = 1;
     NodeClient nodeClient = 2;
+    
+    oneof NodeType {
+        Beacon beacon = 20;
+        Validator validator = 21;
+    }
+
+    message Beacon {
+    }
+
+    message Validator {
+        uint64 numValidators = 1;
+        bool withDeposit = 2;
+    }
 }
 
-message DeployValidatorResponse {
-
+message NodeDeployResponse {
+    Node node = 1;
 }
 
 message NodeListRequest {
