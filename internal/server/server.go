@@ -8,7 +8,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
@@ -17,7 +16,6 @@ import (
 	"github.com/umbracle/viewpoint/internal/components"
 	"github.com/umbracle/viewpoint/internal/docker"
 	"github.com/umbracle/viewpoint/internal/genesis"
-	"github.com/umbracle/viewpoint/internal/http"
 	"github.com/umbracle/viewpoint/internal/server/proto"
 	"github.com/umbracle/viewpoint/internal/spec"
 	"google.golang.org/grpc"
@@ -28,7 +26,7 @@ type Server struct {
 	config *Config
 	logger hclog.Logger
 
-	eth1           spec.Node
+	eth1HttpAddr   string
 	depositHandler *depositHandler
 
 	// runtime to deploy containers
@@ -101,10 +99,10 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	config.Spec.DepositContract = depositHandler.deposit.String()
 
 	srv := &Server{
-		config: config,
-		logger: logger,
-		eth1:   eth1,
-		docker: docker,
+		config:       config,
+		logger:       logger,
+		eth1HttpAddr: eth1.GetAddr(proto.NodePortEth1Http),
+		docker:       docker,
 		nodes: []spec.Node{
 			eth1,
 			bootnode,
@@ -177,75 +175,138 @@ func (s *Server) filterLocked(cond func(opts *spec.Spec) bool) []spec.Node {
 	return res
 }
 
-func (s *Server) DeployNode(ctx context.Context, req *proto.DeployNodeRequest) (*proto.DeployNodeResponse, error) {
+func (s *Server) NodeDeploy(ctx context.Context, req *proto.NodeDeployRequest) (*proto.NodeDeployResponse, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	useBootnode := true
-
-	bCfg := &proto.BeaconConfig{
-		Spec:       s.config.Spec.buildConfig(),
-		Eth1:       s.eth1.GetAddr(proto.NodePortEth1Http),
-		GenesisSSZ: s.genesisSSZ,
+	numOfNodes := func(typ proto.NodeType) int {
+		nodes := s.filterLocked(func(spec *spec.Spec) bool {
+			return spec.HasLabel(proto.NodeTypeLabel, typ.String())
+		})
+		return len(nodes)
 	}
 
-	if !useBootnode {
-		if len(s.nodes) != 0 {
-			client := http.NewHttpClient(s.nodes[0].GetAddr(proto.NodePortHttp))
-			identity, err := client.NodeIdentity()
-			if err != nil {
-				return nil, fmt.Errorf("cannto get a bootnode: %v", err)
-			}
-			bCfg.Bootnode = identity.ENR
+	deployNode := func(name string, spec *spec.Spec) (*proto.Node, error) {
+		fLogger, err := s.fileLogger.Create(name)
+		if err != nil {
+			return nil, err
 		}
-	} else {
-		bCfg.Bootnode = s.bootnodeENR
+		spec.WithName(name).
+			WithOutput(fLogger)
+
+		node, err := s.docker.Deploy(spec)
+		if err != nil {
+			return nil, err
+		}
+		s.nodes = append(s.nodes, node)
+
+		stub, err := specNodeToNode(node)
+		if err != nil {
+			return nil, err
+		}
+		return stub, nil
 	}
 
-	var beaconFactory proto.CreateBeacon2
-	switch req.NodeClient {
-	case proto.NodeClient_Teku:
-		beaconFactory = components.NewTekuBeacon
-	case proto.NodeClient_Prysm:
-		beaconFactory = components.NewPrysmBeacon
-	case proto.NodeClient_Lighthouse:
-		beaconFactory = components.NewLighthouseBeacon
-	default:
-		return nil, fmt.Errorf("beacon type %s not found", req.NodeClient)
+	var node *proto.Node
+
+	if _, ok := req.NodeType.(*proto.NodeDeployRequest_Beacon_); ok {
+		name := fmt.Sprintf("beacon-%d-%s", numOfNodes(proto.NodeType_Beacon), req.NodeClient.String())
+
+		bCfg := &proto.BeaconConfig{
+			Spec:       s.config.Spec.buildConfig(),
+			Eth1:       s.eth1HttpAddr,
+			GenesisSSZ: s.genesisSSZ,
+			Bootnode:   s.bootnodeENR,
+		}
+
+		factory, ok := beaconFactory[req.NodeClient]
+		if !ok {
+			return nil, fmt.Errorf("validator client %s not found", req.NodeClient)
+		}
+
+		spec, err := factory(bCfg)
+		if err != nil {
+			return nil, err
+		}
+		node, err = deployNode(name, spec)
+		if err != nil {
+			return nil, err
+		}
+
+	} else if typ, ok := req.NodeType.(*proto.NodeDeployRequest_Validator_); ok {
+		deploy := typ.Validator
+
+		if deploy.NumValidators == 0 {
+			return nil, fmt.Errorf("no number of validators provided")
+		}
+
+		// pick a beacon node to connect that is of the same type as the validator
+		beacons := s.filterLocked(func(spec *spec.Spec) bool {
+			return spec.HasLabel(proto.NodeTypeLabel, proto.NodeType_Beacon.String()) &&
+				spec.HasLabel(proto.NodeClientLabel, req.NodeClient.String())
+		})
+		if len(beacons) == 0 {
+			return nil, fmt.Errorf("no beacon node found for client %s", req.NodeClient.String())
+		}
+
+		target := beacons[0]
+		var accounts []*proto.Account
+
+		if deploy.WithDeposit {
+			// send deposits to the genesis contract
+			accounts = proto.NewAccounts(int(deploy.NumValidators))
+
+			if err := s.depositHandler.MakeDeposits(accounts); err != nil {
+				return nil, err
+			}
+		} else {
+			// deploy from the genesis accounts set
+			pickNumAccounts := min(int(deploy.NumValidators), len(s.genesisAccounts))
+			if pickNumAccounts == 0 {
+				return nil, fmt.Errorf("there are no more genesis accounts to use")
+			}
+			accounts, s.genesisAccounts = s.genesisAccounts[:pickNumAccounts], s.genesisAccounts[pickNumAccounts:]
+		}
+
+		name := fmt.Sprintf("validator-%d-%s", numOfNodes(proto.NodeType_Validator), req.NodeClient.String())
+
+		vCfg := &proto.ValidatorConfig{
+			Accounts: accounts,
+			Spec:     s.config.Spec.buildConfig(),
+			Beacon:   target,
+		}
+
+		factory, ok := validatorsFactory[req.NodeClient]
+		if !ok {
+			return nil, fmt.Errorf("validator client %s not found", req.NodeClient)
+		}
+
+		spec, err := factory(vCfg)
+		if err != nil {
+			return nil, err
+		}
+		node, err = deployNode(name, spec)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	indx := len(s.nodes)
-
-	// generate a name
-	name := fmt.Sprintf("beacon-%s-%d", strings.ToLower(req.NodeClient.String()), indx)
-
-	fLogger, err := s.fileLogger.Create(name)
-	if err != nil {
-		return nil, err
+	resp := &proto.NodeDeployResponse{
+		Node: node,
 	}
-	spec, err := beaconFactory(bCfg)
-	if err != nil {
-		return nil, err
-	}
+	return resp, nil
+}
 
-	labels := map[string]string{
-		"name":     name,
-		"type":     "beacon",
-		"ensemble": s.config.Name,
-	}
-	spec.WithName(name).
-		WithOutput(fLogger).
-		WithLabels(labels)
+var beaconFactory = map[proto.NodeClient]proto.CreateBeacon2{
+	proto.NodeClient_Teku:       components.NewTekuBeacon,
+	proto.NodeClient_Prysm:      components.NewPrysmBeacon,
+	proto.NodeClient_Lighthouse: components.NewLighthouseBeacon,
+}
 
-	node, err := s.docker.Deploy(spec)
-	if err != nil {
-		return nil, err
-	}
-
-	s.nodes = append(s.nodes, node)
-
-	s.logger.Info("beacon node started", "client", req.NodeClient)
-	return &proto.DeployNodeResponse{}, nil
+var validatorsFactory = map[proto.NodeClient]proto.CreateValidator2{
+	proto.NodeClient_Teku:       components.NewTekuValidator,
+	proto.NodeClient_Prysm:      components.NewPrysmValidator,
+	proto.NodeClient_Lighthouse: components.NewLighthouseValidator,
 }
 
 func min(i, j int) int {
@@ -253,75 +314,6 @@ func min(i, j int) int {
 		return i
 	}
 	return j
-}
-
-func (s *Server) DeployValidator(ctx context.Context, req *proto.DeployValidatorRequest) (*proto.DeployValidatorResponse, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	if req.NumValidators == 0 {
-		return nil, fmt.Errorf("no number of validators provided")
-	}
-
-	beacons := s.filterLocked(func(spec *spec.Spec) bool {
-		return spec.HasLabel(proto.NodeTypeLabel, proto.NodeType_Beacon.String()) &&
-			spec.HasLabel(proto.NodeClientLabel, req.NodeClient.String())
-	})
-	if len(beacons) == 0 {
-		return nil, fmt.Errorf("no beacon node found for client %s", req.NodeClient.String())
-	}
-
-	beacon := beacons[0]
-
-	// deploy from genesis accounts
-	pickNumAccounts := min(int(req.NumValidators), len(s.genesisAccounts))
-	if pickNumAccounts == 0 {
-		return nil, fmt.Errorf("there are no more genesis accounts to use")
-	}
-
-	var accounts []*proto.Account
-	accounts, s.genesisAccounts = s.genesisAccounts[:pickNumAccounts], s.genesisAccounts[pickNumAccounts:]
-
-	indx := len(s.nodes)
-
-	// generate a name
-	name := fmt.Sprintf("validator-%s-%d", strings.ToLower(req.NodeClient.String()), indx)
-
-	fLogger, err := s.fileLogger.Create(name)
-	if err != nil {
-		return nil, err
-	}
-
-	vCfg := &proto.ValidatorConfig{
-		Accounts: accounts,
-		Spec:     s.config.Spec.buildConfig(),
-		Beacon:   beacon,
-	}
-
-	var validatorFactory proto.CreateValidator2
-	switch req.NodeClient {
-	case proto.NodeClient_Teku:
-		validatorFactory = components.NewTekuValidator
-	case proto.NodeClient_Prysm:
-		validatorFactory = components.NewPrysmValidator
-	case proto.NodeClient_Lighthouse:
-		validatorFactory = components.NewLighthouseValidator
-	default:
-		return nil, fmt.Errorf("validator client %s not found", req.NodeClient)
-	}
-
-	spec, err := validatorFactory(vCfg)
-	if err != nil {
-		return nil, err
-	}
-	spec.WithName(name).WithOutput(fLogger)
-
-	node, err := s.docker.Deploy(spec)
-	if err != nil {
-		return nil, err
-	}
-	s.nodes = append(s.nodes, node)
-	return &proto.DeployValidatorResponse{}, nil
 }
 
 func (s *Server) NodeList(ctx context.Context, req *proto.NodeListRequest) (*proto.NodeListResponse, error) {
