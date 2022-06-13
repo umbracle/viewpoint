@@ -23,22 +23,8 @@ type Spec struct {
 	Files      map[string][]byte
 	Output     []io.Writer
 	Labels     map[string]string
-	//NodeClient proto.NodeClient
-	//NodeType   proto.NodeType
-	User string
+	User       string
 }
-
-/*
-func (s *Spec) WithNodeClient(nodeClient proto.NodeClient) *Spec {
-	s.NodeClient = nodeClient
-	return s
-}
-
-func (s *Spec) WithNodeType(nodeType proto.NodeType) *Spec {
-	s.NodeType = nodeType
-	return s
-}
-*/
 
 func (s *Spec) HasLabel(k, v string) bool {
 	return s.Labels[k] == v
@@ -55,6 +41,9 @@ func (s *Spec) WithTag(tag string) *Spec {
 }
 
 func (s *Spec) WithCmd(cmd []string) *Spec {
+	if len(s.Cmd) == 0 {
+		s.Cmd = []string{}
+	}
 	s.Cmd = append(s.Cmd, cmd...)
 	return s
 }
@@ -70,23 +59,32 @@ func (s *Spec) WithRetry(retry func(n Node) error) *Spec {
 }
 
 func (s *Spec) WithMount(mount string) *Spec {
+	if len(s.Mount) == 0 {
+		s.Mount = []string{}
+	}
 	s.Mount = append(s.Mount, mount)
 	return s
 }
 
 func (s *Spec) WithOutput(output io.Writer) *Spec {
+	if len(s.Output) == 0 {
+		s.Output = []io.Writer{}
+	}
 	s.Output = append(s.Output, output)
 	return s
 }
 
 func (s *Spec) WithLabel(k, v string) *Spec {
+	if len(s.Labels) == 0 {
+		s.Labels = map[string]string{}
+	}
 	s.Labels[k] = v
 	return s
 }
 
 func (s *Spec) WithLabels(m map[string]string) *Spec {
 	for k, v := range m {
-		s.Labels[k] = v
+		s.WithLabel(k, v)
 	}
 	return s
 }
@@ -97,6 +95,10 @@ func (s *Spec) WithUser(user string) *Spec {
 }
 
 func (s *Spec) WithFile(path string, obj interface{}) *Spec {
+	if len(s.Files) == 0 {
+		s.Files = map[string][]byte{}
+	}
+
 	var data []byte
 	var err error
 
