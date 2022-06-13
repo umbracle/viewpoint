@@ -1,8 +1,10 @@
-package server
+package components
 
 import (
 	"fmt"
 	"regexp"
+
+	specX "github.com/umbracle/viewpoint/internal/spec"
 )
 
 var (
@@ -10,13 +12,13 @@ var (
 )
 
 type Bootnode struct {
-	*node
+	*specX.Spec
 
 	Enr string
 }
 
-func NewBootnode(d *Docker) (*Bootnode, error) {
-	decodeEnr := func(node *node) (string, error) {
+func NewBootnode() *Bootnode {
+	decodeEnr := func(node specX.Node) (string, error) {
 		logs, err := node.GetLogs()
 		if err != nil {
 			return "", err
@@ -36,28 +38,21 @@ func NewBootnode(d *Docker) (*Bootnode, error) {
 		"--discv5-port", "3000",
 	}
 
-	nodeENR := ""
-	opts := []nodeOption{
-		WithName("bootnode"),
-		WithCmd(cmd),
-		WithContainer("gcr.io/prysmaticlabs/prysm/bootnode"),
-		WithRetry(func(n *node) error {
+	b := &Bootnode{}
+
+	spec := &specX.Spec{}
+	spec.WithName("bootnode").
+		WithCmd(cmd).
+		WithContainer("gcr.io/prysmaticlabs/prysm/bootnode").
+		WithRetry(func(n specX.Node) error {
 			enr, err := decodeEnr(n)
 			if err != nil {
 				return err
 			}
-			nodeENR = enr
+			b.Enr = enr
 			return nil
-		}),
-	}
+		})
 
-	node, err := d.Deploy(opts...)
-	if err != nil {
-		return nil, err
-	}
-	b := &Bootnode{
-		Enr:  nodeENR,
-		node: node,
-	}
-	return b, nil
+	b.Spec = spec
+	return b
 }

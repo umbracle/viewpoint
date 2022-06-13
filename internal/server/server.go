@@ -14,9 +14,12 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/umbracle/ethgo"
 	"github.com/umbracle/ethgo/jsonrpc"
+	"github.com/umbracle/viewpoint/internal/components"
+	"github.com/umbracle/viewpoint/internal/docker"
 	"github.com/umbracle/viewpoint/internal/genesis"
 	"github.com/umbracle/viewpoint/internal/http"
 	"github.com/umbracle/viewpoint/internal/server/proto"
+	"github.com/umbracle/viewpoint/internal/spec"
 	"google.golang.org/grpc"
 )
 
@@ -25,16 +28,16 @@ type Server struct {
 	config *Config
 	logger hclog.Logger
 
-	eth1           *node
+	eth1           spec.Node
 	depositHandler *depositHandler
 
 	// runtime to deploy containers
-	docker *Docker
+	docker *docker.Docker
 
-	lock       sync.Mutex
-	fileLogger *fileLogger
-	nodes      []*node
-	bootnode   *Bootnode
+	lock        sync.Mutex
+	fileLogger  *fileLogger
+	nodes       []spec.Node
+	bootnodeENR string
 
 	// genesis data
 	genesisSSZ      []byte
@@ -42,22 +45,23 @@ type Server struct {
 }
 
 func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
-	docker, err := NewDocker()
+	docker, err := docker.NewDocker()
 	if err != nil {
 		return nil, err
 	}
 
-	eth1, err := docker.Deploy(NewEth1Server()...)
+	eth1, err := docker.Deploy(components.NewEth1Server())
 	if err != nil {
 		return nil, err
 	}
-	bootnode, err := NewBootnode(docker)
+	bootnodeSpec := components.NewBootnode()
+	bootnode, err := docker.Deploy(bootnodeSpec.Spec)
 	if err != nil {
 		return nil, err
 	}
 
 	// get latest block
-	provider, err := jsonrpc.NewClient(eth1.GetAddr(NodePortEth1Http))
+	provider, err := jsonrpc.NewClient(eth1.GetAddr(proto.NodePortEth1Http))
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +83,7 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		return nil, err
 	}
 
-	depositHandler, err := newDepositHandler(eth1.GetAddr(NodePortEth1Http))
+	depositHandler, err := newDepositHandler(eth1.GetAddr(proto.NodePortEth1Http))
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +95,7 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		return nil, err
 	}
 
-	logger.Info("eth1 server deployed", "addr", eth1.GetAddr(NodePortEth1Http))
+	logger.Info("eth1 server deployed", "addr", eth1.GetAddr(proto.NodePortEth1Http))
 	logger.Info("deposit contract deployed", "addr", depositHandler.deposit.String())
 
 	config.Spec.DepositContract = depositHandler.deposit.String()
@@ -101,13 +105,13 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		logger: logger,
 		eth1:   eth1,
 		docker: docker,
-		nodes: []*node{
+		nodes: []spec.Node{
 			eth1,
-			bootnode.node,
+			bootnode,
 		},
 		genesisAccounts: accounts,
 		fileLogger:      &fileLogger{path: dataPath},
-		bootnode:        bootnode,
+		bootnodeENR:     bootnodeSpec.Enr,
 		depositHandler:  depositHandler,
 		genesisSSZ:      genesisSSZ,
 	}
@@ -163,10 +167,10 @@ func (s *Server) Stop() {
 	}
 }
 
-func (s *Server) filterLocked(cond func(opts *nodeOpts) bool) []*node {
-	res := []*node{}
+func (s *Server) filterLocked(cond func(opts *spec.Spec) bool) []spec.Node {
+	res := []spec.Node{}
 	for _, i := range s.nodes {
-		if cond(i.opts) {
+		if cond(i.Spec()) {
 			res = append(res, i)
 		}
 	}
@@ -179,15 +183,15 @@ func (s *Server) DeployNode(ctx context.Context, req *proto.DeployNodeRequest) (
 
 	useBootnode := true
 
-	bCfg := &BeaconConfig{
-		Spec:       s.config.Spec,
-		Eth1:       s.eth1.GetAddr(NodePortEth1Http),
+	bCfg := &proto.BeaconConfig{
+		Spec:       s.config.Spec.buildConfig(),
+		Eth1:       s.eth1.GetAddr(proto.NodePortEth1Http),
 		GenesisSSZ: s.genesisSSZ,
 	}
 
 	if !useBootnode {
 		if len(s.nodes) != 0 {
-			client := http.NewHttpClient(s.nodes[0].GetAddr(NodePortHttp))
+			client := http.NewHttpClient(s.nodes[0].GetAddr(proto.NodePortHttp))
 			identity, err := client.NodeIdentity()
 			if err != nil {
 				return nil, fmt.Errorf("cannto get a bootnode: %v", err)
@@ -195,17 +199,17 @@ func (s *Server) DeployNode(ctx context.Context, req *proto.DeployNodeRequest) (
 			bCfg.Bootnode = identity.ENR
 		}
 	} else {
-		bCfg.Bootnode = s.bootnode.Enr
+		bCfg.Bootnode = s.bootnodeENR
 	}
 
-	var beaconFactory CreateBeacon2
+	var beaconFactory proto.CreateBeacon2
 	switch req.NodeClient {
 	case proto.NodeClient_Teku:
-		beaconFactory = NewTekuBeacon
+		beaconFactory = components.NewTekuBeacon
 	case proto.NodeClient_Prysm:
-		beaconFactory = NewPrysmBeacon
+		beaconFactory = components.NewPrysmBeacon
 	case proto.NodeClient_Lighthouse:
-		beaconFactory = NewLighthouseBeacon
+		beaconFactory = components.NewLighthouseBeacon
 	default:
 		return nil, fmt.Errorf("beacon type %s not found", req.NodeClient)
 	}
@@ -219,7 +223,7 @@ func (s *Server) DeployNode(ctx context.Context, req *proto.DeployNodeRequest) (
 	if err != nil {
 		return nil, err
 	}
-	opts, err := beaconFactory(bCfg)
+	spec, err := beaconFactory(bCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -229,21 +233,18 @@ func (s *Server) DeployNode(ctx context.Context, req *proto.DeployNodeRequest) (
 		"type":     "beacon",
 		"ensemble": s.config.Name,
 	}
-	genOpts := []nodeOption{
-		WithName(name),
-		WithOutput(fLogger),
-		WithLabels(labels),
-	}
-	genOpts = append(genOpts, opts...)
+	spec.WithName(name).
+		WithOutput(fLogger).
+		WithLabels(labels)
 
-	node, err := s.docker.Deploy(genOpts...)
+	node, err := s.docker.Deploy(spec)
 	if err != nil {
 		return nil, err
 	}
 
 	s.nodes = append(s.nodes, node)
 
-	s.logger.Info("beacon node started", "client", req.NodeClient, "mount-map", node.mountMap)
+	s.logger.Info("beacon node started", "client", req.NodeClient)
 	return &proto.DeployNodeResponse{}, nil
 }
 
@@ -262,8 +263,9 @@ func (s *Server) DeployValidator(ctx context.Context, req *proto.DeployValidator
 		return nil, fmt.Errorf("no number of validators provided")
 	}
 
-	beacons := s.filterLocked(func(opts *nodeOpts) bool {
-		return opts.NodeType == proto.NodeType_Beacon && opts.NodeClient == req.NodeClient
+	beacons := s.filterLocked(func(spec *spec.Spec) bool {
+		return spec.HasLabel(proto.NodeTypeLabel, proto.NodeType_Beacon.String()) &&
+			spec.HasLabel(proto.NodeClientLabel, req.NodeClient.String())
 	})
 	if len(beacons) == 0 {
 		return nil, fmt.Errorf("no beacon node found for client %s", req.NodeClient.String())
@@ -290,35 +292,31 @@ func (s *Server) DeployValidator(ctx context.Context, req *proto.DeployValidator
 		return nil, err
 	}
 
-	vCfg := &ValidatorConfig{
+	vCfg := &proto.ValidatorConfig{
 		Accounts: accounts,
-		Spec:     s.config.Spec,
+		Spec:     s.config.Spec.buildConfig(),
 		Beacon:   beacon,
 	}
 
-	var validatorFactory CreateValidator2
+	var validatorFactory proto.CreateValidator2
 	switch req.NodeClient {
 	case proto.NodeClient_Teku:
-		validatorFactory = NewTekuValidator
+		validatorFactory = components.NewTekuValidator
 	case proto.NodeClient_Prysm:
-		validatorFactory = NewPrysmValidator
+		validatorFactory = components.NewPrysmValidator
 	case proto.NodeClient_Lighthouse:
-		validatorFactory = NewLighthouseValidator
+		validatorFactory = components.NewLighthouseValidator
 	default:
 		return nil, fmt.Errorf("validator client %s not found", req.NodeClient)
 	}
 
-	opts, err := validatorFactory(vCfg)
+	spec, err := validatorFactory(vCfg)
 	if err != nil {
 		return nil, err
 	}
-	genOpts := []nodeOption{
-		WithName(name),
-		WithOutput(fLogger),
-	}
-	genOpts = append(genOpts, opts...)
+	spec.WithName(name).WithOutput(fLogger)
 
-	node, err := s.docker.Deploy(genOpts...)
+	node, err := s.docker.Deploy(spec)
 	if err != nil {
 		return nil, err
 	}

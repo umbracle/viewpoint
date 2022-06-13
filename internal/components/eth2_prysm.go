@@ -1,4 +1,4 @@
-package server
+package components
 
 import (
 	"encoding/json"
@@ -7,10 +7,11 @@ import (
 	"github.com/umbracle/ethgo/keystore"
 	"github.com/umbracle/viewpoint/internal/bls"
 	"github.com/umbracle/viewpoint/internal/server/proto"
+	"github.com/umbracle/viewpoint/internal/spec"
 )
 
 // NewPrysmBeacon creates a new prysm server
-func NewPrysmBeacon(config *BeaconConfig) ([]nodeOption, error) {
+func NewPrysmBeacon(config *proto.BeaconConfig) (*spec.Spec, error) {
 	cmd := []string{
 		"--verbosity", "debug",
 		// eth1x
@@ -41,22 +42,22 @@ func NewPrysmBeacon(config *BeaconConfig) ([]nodeOption, error) {
 	if config.Bootnode != "" {
 		cmd = append(cmd, "--bootstrap-node", config.Bootnode)
 	}
-	opts := []nodeOption{
-		WithNodeClient(proto.NodeClient_Prysm),
-		WithNodeType(proto.NodeType_Beacon),
-		WithContainer("gcr.io/prysmaticlabs/prysm/beacon-chain"),
-		WithTag("v2.0.6"),
-		WithCmd(cmd),
-		WithMount("/data"),
-		WithFile("/data/config.yaml", config.Spec),
-		WithFile("/data/genesis.ssz", config.GenesisSSZ),
-	}
-	return opts, nil
+	spec := &spec.Spec{}
+	spec.WithLabel(proto.NodeClientLabel, proto.NodeClient_Prysm.String()).
+		WithLabel(proto.NodeTypeLabel, proto.NodeType_Beacon.String()).
+		WithContainer("gcr.io/prysmaticlabs/prysm/beacon-chain").
+		WithTag("v2.0.6").
+		WithCmd(cmd).
+		WithMount("/data").
+		WithFile("/data/config.yaml", config.Spec).
+		WithFile("/data/genesis.ssz", config.GenesisSSZ)
+
+	return spec, nil
 }
 
 const defWalletPassword = "qwerty"
 
-func NewPrysmValidator(config *ValidatorConfig) ([]nodeOption, error) {
+func NewPrysmValidator(config *proto.ValidatorConfig) (*spec.Spec, error) {
 	store := &accountStore{}
 	for _, acct := range config.Accounts {
 		store.AddKey(acct.Bls)
@@ -75,22 +76,22 @@ func NewPrysmValidator(config *ValidatorConfig) ([]nodeOption, error) {
 		"--wallet-dir", "/data",
 		"--wallet-password-file", "/data/wallet-password.txt",
 		// beacon node reference of the GRPC endpoint
-		"--beacon-rpc-provider", strings.TrimPrefix(config.Beacon.GetAddr(NodePortPrysmGrpc), "http://"),
+		"--beacon-rpc-provider", strings.TrimPrefix(config.Beacon.GetAddr(proto.NodePortPrysmGrpc), "http://"),
 		// config
 		"--chain-config-file", "/data/config.yaml",
 	}
-	opts := []nodeOption{
-		WithNodeClient(proto.NodeClient_Prysm),
-		WithNodeType(proto.NodeType_Validator),
-		WithContainer("gcr.io/prysmaticlabs/prysm/validator"),
-		WithTag("v2.0.6"),
-		WithCmd(cmd),
-		WithMount("/data"),
-		WithFile("/data/direct/accounts/all-accounts.keystore.json", keystore),
-		WithFile("/data/wallet-password.txt", defWalletPassword),
-		WithFile("/data/config.yaml", config.Spec),
-	}
-	return opts, nil
+	spec := &spec.Spec{}
+	spec.WithLabel(proto.NodeClientLabel, proto.NodeClient_Prysm.String()).
+		WithLabel(proto.NodeTypeLabel, proto.NodeType_Validator.String()).
+		WithContainer("gcr.io/prysmaticlabs/prysm/validator").
+		WithTag("v2.0.6").
+		WithCmd(cmd).
+		WithMount("/data").
+		WithFile("/data/direct/accounts/all-accounts.keystore.json", keystore).
+		WithFile("/data/wallet-password.txt", defWalletPassword).
+		WithFile("/data/config.yaml", config.Spec)
+
+	return spec, nil
 }
 
 // accountStore is the format used by all managers??

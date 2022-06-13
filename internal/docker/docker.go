@@ -1,10 +1,8 @@
-package server
+package docker
 
 import (
 	"bytes"
 	"context"
-	"encoding"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -23,22 +21,8 @@ import (
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/hashicorp/go-hclog"
 	"github.com/umbracle/viewpoint/internal/server/proto"
+	"github.com/umbracle/viewpoint/internal/spec"
 )
-
-type nodeOpts struct {
-	Repository string
-	Tag        string
-	Cmd        []string
-	Retry      func(n *node) error
-	Name       string
-	Mount      []string
-	Files      map[string][]byte
-	Output     []io.Writer
-	Labels     map[string]string
-	NodeClient proto.NodeClient
-	NodeType   proto.NodeType
-	User       string
-}
 
 type exitResult struct {
 	err error
@@ -47,103 +31,12 @@ type exitResult struct {
 type node struct {
 	cli        *client.Client
 	id         string
-	opts       *nodeOpts
+	opts       *spec.Spec
 	ip         string
-	ports      map[NodePort]uint64
+	ports      map[string]uint64
 	waitCh     chan struct{}
 	exitResult *exitResult
 	mountMap   map[string]string
-}
-
-type nodeOption func(*nodeOpts)
-
-func WithNodeClient(nodeClient proto.NodeClient) nodeOption {
-	return func(n *nodeOpts) {
-		n.NodeClient = nodeClient
-	}
-}
-
-func WithNodeType(nodeType proto.NodeType) nodeOption {
-	return func(n *nodeOpts) {
-		n.NodeType = nodeType
-	}
-}
-
-func WithContainer(repository string) nodeOption {
-	return func(n *nodeOpts) {
-		n.Repository = repository
-	}
-}
-
-func WithTag(tag string) nodeOption {
-	return func(n *nodeOpts) {
-		n.Tag = tag
-	}
-}
-
-func WithCmd(cmd []string) nodeOption {
-	return func(n *nodeOpts) {
-		n.Cmd = append(n.Cmd, cmd...)
-	}
-}
-
-func WithName(name string) nodeOption {
-	return func(n *nodeOpts) {
-		n.Name = name
-	}
-}
-
-func WithRetry(retry func(n *node) error) nodeOption {
-	return func(n *nodeOpts) {
-		n.Retry = retry
-	}
-}
-
-func WithMount(mount string) nodeOption {
-	return func(n *nodeOpts) {
-		n.Mount = append(n.Mount, mount)
-	}
-}
-
-func WithOutput(output io.Writer) nodeOption {
-	return func(n *nodeOpts) {
-		n.Output = append(n.Output, output)
-	}
-}
-
-func WithLabels(m map[string]string) nodeOption {
-	return func(n *nodeOpts) {
-		for k, v := range m {
-			n.Labels[k] = v
-		}
-	}
-}
-
-func WithUser(user string) nodeOption {
-	return func(n *nodeOpts) {
-		n.User = user
-	}
-}
-
-func WithFile(path string, obj interface{}) nodeOption {
-	return func(n *nodeOpts) {
-		var data []byte
-		var err error
-
-		if objS, ok := obj.(string); ok {
-			data = []byte(objS)
-		} else if objB, ok := obj.([]byte); ok {
-			data = objB
-		} else if objT, ok := obj.(encoding.TextMarshaler); ok {
-			data, err = objT.MarshalText()
-		} else {
-			data, err = json.Marshal(obj)
-		}
-		if err != nil {
-			panic(err)
-		}
-		n.Files[path] = data
-	}
 }
 
 type Docker struct {
@@ -167,30 +60,22 @@ func (d *Docker) SetLogger(logger hclog.Logger) {
 	d.logger = logger
 }
 
-func (d *Docker) Deploy(opts ...nodeOption) (*node, error) {
+func (d *Docker) Deploy(spec *spec.Spec) (*node, error) {
 	ctx := context.Background()
 
-	nOpts := &nodeOpts{
-		Mount:  []string{},
-		Files:  map[string][]byte{},
-		Cmd:    []string{},
-		Output: []io.Writer{},
-		Labels: map[string]string{},
-		Tag:    "latest",
-	}
-	for _, opt := range opts {
-		opt(nOpts)
+	if spec.Tag == "" {
+		spec.Tag = "latest"
 	}
 
 	// setup configuration
 	dirPrefix := "node-"
-	if nOpts.Name != "" {
-		dirPrefix += nOpts.Name + "-"
+	if spec.Name != "" {
+		dirPrefix += spec.Name + "-"
 	}
 
 	// build any mount path
 	mountMap := map[string]string{}
-	for _, mount := range nOpts.Mount {
+	for _, mount := range spec.Mount {
 		tmpDir, err := ioutil.TempDir("/tmp", dirPrefix)
 		if err != nil {
 			return nil, err
@@ -199,7 +84,7 @@ func (d *Docker) Deploy(opts ...nodeOption) (*node, error) {
 	}
 
 	// build the files
-	for path, content := range nOpts.Files {
+	for path, content := range spec.Files {
 		// find the mount match
 		var mount, local string
 		var found bool
@@ -228,7 +113,7 @@ func (d *Docker) Deploy(opts ...nodeOption) (*node, error) {
 		}
 	}
 
-	imageName := nOpts.Repository + ":" + nOpts.Tag
+	imageName := spec.Repository + ":" + spec.Tag
 
 	// pull image if it does not exists
 	_, _, err := d.cli.ImageInspectWithRaw(ctx, imageName)
@@ -245,16 +130,16 @@ func (d *Docker) Deploy(opts ...nodeOption) (*node, error) {
 
 	n := &node{
 		cli:      d.cli,
-		opts:     nOpts,
+		opts:     spec,
 		ip:       "127.0.0.1",
-		ports:    map[NodePort]uint64{},
+		ports:    map[string]uint64{},
 		waitCh:   make(chan struct{}),
 		mountMap: mountMap,
 	}
 
 	// build CLI arguments which might include template arguments
 	cmdArgs := []string{}
-	for _, cmd := range nOpts.Cmd {
+	for _, cmd := range spec.Cmd {
 		cleanCmd, err := n.execCmd(cmd)
 		if err != nil {
 			return nil, err
@@ -265,8 +150,8 @@ func (d *Docker) Deploy(opts ...nodeOption) (*node, error) {
 	config := &container.Config{
 		Image:  imageName,
 		Cmd:    strslice.StrSlice(cmdArgs),
-		Labels: nOpts.Labels,
-		User:   nOpts.User,
+		Labels: spec.Labels,
+		User:   spec.User,
 	}
 	hostConfig := &container.HostConfig{
 		Binds:       []string{},
@@ -290,7 +175,7 @@ func (d *Docker) Deploy(opts ...nodeOption) (*node, error) {
 
 	go n.run()
 
-	if len(nOpts.Output) != 0 {
+	if len(spec.Output) != 0 {
 		// track the logs to output
 		go func() {
 			if err := n.trackOutput(); err != nil {
@@ -299,9 +184,9 @@ func (d *Docker) Deploy(opts ...nodeOption) (*node, error) {
 		}()
 	}
 
-	if nOpts.Retry != nil {
+	if spec.Retry != nil {
 		if err := n.retryFn(defaultTimeoutDuration, func() error {
-			return nOpts.Retry(n)
+			return spec.Retry(n)
 		}); err != nil {
 			return nil, err
 		}
@@ -310,48 +195,36 @@ func (d *Docker) Deploy(opts ...nodeOption) (*node, error) {
 	return n, nil
 }
 
-type NodePort string
-
-const (
-	// NodePortEth1Http is the http port for the eth1 node.
-	NodePortEth1Http = "eth1.http"
-
-	// NodePortP2P is the p2p port for an eth2 node.
-	NodePortP2P = "eth2.p2p"
-
-	// NodePortHttp is the http port for an eth2 node.
-	NodePortHttp = "eth2.http"
-
-	// NodePortPrysmGrpc is the specific prysm port for its Grpc server
-	NodePortPrysmGrpc = "eth2.prysm.grpc"
-)
+func (n *node) Spec() *spec.Spec {
+	return n.opts
+}
 
 func uintPtr(i uint64) *uint64 {
 	return &i
 }
 
 // port ranges for each node value.
-var ports = map[NodePort]*uint64{
-	NodePortEth1Http:  uintPtr(8000),
-	NodePortP2P:       uintPtr(5000),
-	NodePortHttp:      uintPtr(7000),
-	NodePortPrysmGrpc: uintPtr(4000),
+var ports = map[proto.NodePort]*uint64{
+	proto.NodePortEth1Http:  uintPtr(8000),
+	proto.NodePortP2P:       uintPtr(5000),
+	proto.NodePortHttp:      uintPtr(7000),
+	proto.NodePortPrysmGrpc: uintPtr(4000),
 }
 
 func (n *node) execCmd(cmd string) (string, error) {
 	t := template.New("node_cmd")
 	t.Funcs(template.FuncMap{
-		"Port": func(name NodePort) string {
+		"Port": func(name proto.NodePort) string {
 			port, ok := ports[name]
 			if !ok {
 				panic(fmt.Sprintf("Port '%s' not found", name))
 			}
 			var relPort uint64
-			if foundPort, ok := n.ports[name]; ok {
+			if foundPort, ok := n.ports[string(name)]; ok {
 				relPort = foundPort
 			} else {
 				relPort = atomic.AddUint64(port, 1)
-				n.ports[name] = relPort
+				n.ports[string(name)] = relPort
 			}
 			return fmt.Sprintf("%d", relPort)
 		},
@@ -392,7 +265,7 @@ func (n *node) run() {
 	close(n.waitCh)
 }
 
-func (n *node) GetAddr(port NodePort) string {
+func (n *node) GetAddr(port string) string {
 	num, ok := n.ports[port]
 	if !ok {
 		panic(fmt.Sprintf("port '%s' not found", port))
@@ -441,10 +314,6 @@ func (n *node) GetLogs() (string, error) {
 
 func (n *node) IP() string {
 	return n.ip
-}
-
-func (n *node) Type() proto.NodeClient {
-	return n.opts.NodeClient
 }
 
 var defaultTimeoutDuration = 1 * time.Minute
