@@ -33,7 +33,6 @@ type nodeOpts struct {
 	Name       string
 	Mount      []string
 	Files      map[string][]byte
-	Logger     hclog.Logger
 	Output     []io.Writer
 	Labels     map[string]string
 	NodeClient proto.NodeClient
@@ -147,25 +146,40 @@ func WithFile(path string, obj interface{}) nodeOption {
 	}
 }
 
-func newNode(opts ...nodeOption) (*node, error) {
+type Docker struct {
+	cli    *client.Client
+	logger hclog.Logger
+}
+
+func NewDocker() (*Docker, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		return nil, fmt.Errorf("could not connect to docker: %s", err)
+	}
+	d := &Docker{
+		cli:    cli,
+		logger: hclog.L(),
+	}
+	return d, nil
+}
+
+func (d *Docker) SetLogger(logger hclog.Logger) {
+	d.logger = logger
+}
+
+func (d *Docker) Deploy(opts ...nodeOption) (*node, error) {
+	ctx := context.Background()
+
 	nOpts := &nodeOpts{
 		Mount:  []string{},
 		Files:  map[string][]byte{},
 		Cmd:    []string{},
-		Logger: hclog.L(),
 		Output: []io.Writer{},
 		Labels: map[string]string{},
 		Tag:    "latest",
 	}
 	for _, opt := range opts {
 		opt(nOpts)
-	}
-
-	ctx := context.Background()
-
-	cli, err := client.NewClientWithOpts(client.FromEnv)
-	if err != nil {
-		return nil, fmt.Errorf("could not connect to docker: %s", err)
 	}
 
 	// setup configuration
@@ -217,20 +231,20 @@ func newNode(opts ...nodeOption) (*node, error) {
 	imageName := nOpts.Repository + ":" + nOpts.Tag
 
 	// pull image if it does not exists
-	_, _, err = cli.ImageInspectWithRaw(ctx, imageName)
+	_, _, err := d.cli.ImageInspectWithRaw(ctx, imageName)
 	if err != nil {
-		reader, err := cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
+		reader, err := d.cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
 		if err != nil {
 			return nil, err
 		}
-		_, err = io.Copy(nOpts.Logger.StandardWriter(&hclog.StandardLoggerOptions{}), reader)
+		_, err = io.Copy(d.logger.StandardWriter(&hclog.StandardLoggerOptions{}), reader)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	n := &node{
-		cli:      cli,
+		cli:      d.cli,
 		opts:     nOpts,
 		ip:       "127.0.0.1",
 		ports:    map[NodePort]uint64{},
@@ -263,14 +277,14 @@ func newNode(opts ...nodeOption) (*node, error) {
 		hostConfig.Binds = append(hostConfig.Binds, local+":"+mount)
 	}
 
-	body, err := cli.ContainerCreate(ctx, config, hostConfig, &network.NetworkingConfig{}, nil, "")
+	body, err := d.cli.ContainerCreate(ctx, config, hostConfig, &network.NetworkingConfig{}, nil, "")
 	if err != nil {
 		return nil, fmt.Errorf("could not create container: %v", err)
 	}
 	n.id = body.ID
 
 	// start container
-	if err := cli.ContainerStart(ctx, n.id, types.ContainerStartOptions{}); err != nil {
+	if err := d.cli.ContainerStart(ctx, n.id, types.ContainerStartOptions{}); err != nil {
 		return nil, fmt.Errorf("could not start container: %v", err)
 	}
 
@@ -280,7 +294,7 @@ func newNode(opts ...nodeOption) (*node, error) {
 		// track the logs to output
 		go func() {
 			if err := n.trackOutput(); err != nil {
-				n.opts.Logger.Error("failed to log container", "id", n.id, "err", err)
+				d.logger.Error("failed to log container", "id", n.id, "err", err)
 			}
 		}()
 	}

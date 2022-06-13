@@ -15,7 +15,7 @@ type Bootnode struct {
 	Enr string
 }
 
-func NewBootnode() (*Bootnode, error) {
+func NewBootnode(d *Docker) (*Bootnode, error) {
 	decodeEnr := func(node *node) (string, error) {
 		logs, err := node.GetLogs()
 		if err != nil {
@@ -51,7 +51,7 @@ func NewBootnode() (*Bootnode, error) {
 		}),
 	}
 
-	node, err := newNode(opts...)
+	node, err := d.Deploy(opts...)
 	if err != nil {
 		return nil, err
 	}
