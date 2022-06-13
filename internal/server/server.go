@@ -324,6 +324,69 @@ func (s *Server) DeployValidator(ctx context.Context, req *proto.DeployValidator
 	return &proto.DeployValidatorResponse{}, nil
 }
 
+func (s *Server) NodeList(ctx context.Context, req *proto.NodeListRequest) (*proto.NodeListResponse, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	resp := &proto.NodeListResponse{
+		Node: []*proto.Node{},
+	}
+	for _, n := range s.nodes {
+		stub, err := specNodeToNode(n)
+		if err != nil {
+			return nil, err
+		}
+		resp.Node = append(resp.Node, stub)
+	}
+	return resp, nil
+}
+
+func (s *Server) NodeStatus(ctx context.Context, req *proto.NodeStatusRequest) (*proto.NodeStatusResponse, error) {
+	if req.Name == "" {
+		return nil, fmt.Errorf("name is empty")
+	}
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	var target spec.Node
+	for _, n := range s.nodes {
+		if n.Spec().Name == req.Name {
+			target = n
+		}
+	}
+
+	stub, err := specNodeToNode(target)
+	if err != nil {
+		return nil, err
+	}
+	resp := &proto.NodeStatusResponse{
+		Node: stub,
+	}
+	return resp, nil
+}
+
+func specNodeToNode(n spec.Node) (*proto.Node, error) {
+	spec := n.Spec()
+
+	typ, ok := proto.StringToNodeType(spec.Labels[proto.NodeTypeLabel])
+	if !ok {
+		typ = proto.NodeType_OtherType
+	}
+	clt, ok := proto.StringToNodeClient(spec.Labels[proto.NodeClientLabel])
+	if !ok {
+		clt = proto.NodeClient_OtherClient
+	}
+
+	resp := &proto.Node{
+		Name:   spec.Name,
+		Type:   typ,
+		Client: clt,
+		Labels: spec.Labels,
+	}
+	return resp, nil
+}
+
 type fileLogger struct {
 	path string
 

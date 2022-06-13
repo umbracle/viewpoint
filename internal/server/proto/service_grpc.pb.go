@@ -20,6 +20,8 @@ const _ = grpc.SupportPackageIsVersion7
 type E2EServiceClient interface {
 	DeployNode(ctx context.Context, in *DeployNodeRequest, opts ...grpc.CallOption) (*DeployNodeResponse, error)
 	DeployValidator(ctx context.Context, in *DeployValidatorRequest, opts ...grpc.CallOption) (*DeployValidatorResponse, error)
+	NodeList(ctx context.Context, in *NodeListRequest, opts ...grpc.CallOption) (*NodeListResponse, error)
+	NodeStatus(ctx context.Context, in *NodeStatusRequest, opts ...grpc.CallOption) (*NodeStatusResponse, error)
 }
 
 type e2EServiceClient struct {
@@ -48,12 +50,32 @@ func (c *e2EServiceClient) DeployValidator(ctx context.Context, in *DeployValida
 	return out, nil
 }
 
+func (c *e2EServiceClient) NodeList(ctx context.Context, in *NodeListRequest, opts ...grpc.CallOption) (*NodeListResponse, error) {
+	out := new(NodeListResponse)
+	err := c.cc.Invoke(ctx, "/proto.E2EService/NodeList", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *e2EServiceClient) NodeStatus(ctx context.Context, in *NodeStatusRequest, opts ...grpc.CallOption) (*NodeStatusResponse, error) {
+	out := new(NodeStatusResponse)
+	err := c.cc.Invoke(ctx, "/proto.E2EService/NodeStatus", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // E2EServiceServer is the server API for E2EService service.
 // All implementations must embed UnimplementedE2EServiceServer
 // for forward compatibility
 type E2EServiceServer interface {
 	DeployNode(context.Context, *DeployNodeRequest) (*DeployNodeResponse, error)
 	DeployValidator(context.Context, *DeployValidatorRequest) (*DeployValidatorResponse, error)
+	NodeList(context.Context, *NodeListRequest) (*NodeListResponse, error)
+	NodeStatus(context.Context, *NodeStatusRequest) (*NodeStatusResponse, error)
 	mustEmbedUnimplementedE2EServiceServer()
 }
 
@@ -66,6 +88,12 @@ func (UnimplementedE2EServiceServer) DeployNode(context.Context, *DeployNodeRequ
 }
 func (UnimplementedE2EServiceServer) DeployValidator(context.Context, *DeployValidatorRequest) (*DeployValidatorResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeployValidator not implemented")
+}
+func (UnimplementedE2EServiceServer) NodeList(context.Context, *NodeListRequest) (*NodeListResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method NodeList not implemented")
+}
+func (UnimplementedE2EServiceServer) NodeStatus(context.Context, *NodeStatusRequest) (*NodeStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method NodeStatus not implemented")
 }
 func (UnimplementedE2EServiceServer) mustEmbedUnimplementedE2EServiceServer() {}
 
@@ -116,6 +144,42 @@ func _E2EService_DeployValidator_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _E2EService_NodeList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NodeListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(E2EServiceServer).NodeList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.E2EService/NodeList",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(E2EServiceServer).NodeList(ctx, req.(*NodeListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _E2EService_NodeStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NodeStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(E2EServiceServer).NodeStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.E2EService/NodeStatus",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(E2EServiceServer).NodeStatus(ctx, req.(*NodeStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // E2EService_ServiceDesc is the grpc.ServiceDesc for E2EService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -131,7 +195,15 @@ var E2EService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "DeployValidator",
 			Handler:    _E2EService_DeployValidator_Handler,
 		},
+		{
+			MethodName: "NodeList",
+			Handler:    _E2EService_NodeList_Handler,
+		},
+		{
+			MethodName: "NodeStatus",
+			Handler:    _E2EService_NodeStatus_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "internal/testutil/proto/service.proto",
+	Metadata: "internal/server/proto/service.proto",
 }

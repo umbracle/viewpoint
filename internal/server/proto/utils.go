@@ -6,6 +6,14 @@ import (
 	"github.com/umbracle/viewpoint/internal/spec"
 )
 
+func StringToNodeType(str string) (NodeType, bool) {
+	found, ok := NodeType_value[strings.Title(str)]
+	if !ok {
+		return 0, false
+	}
+	return NodeType(found), true
+}
+
 func StringToNodeClient(str string) (NodeClient, bool) {
 	found, ok := NodeClient_value[strings.Title(str)]
 	if !ok {

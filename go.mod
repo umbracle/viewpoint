@@ -9,6 +9,7 @@ require (
 	github.com/hashicorp/go-hclog v1.2.0
 	github.com/hashicorp/go-uuid v1.0.3
 	github.com/mitchellh/cli v1.1.4
+	github.com/ryanuber/columnize v2.1.2+incompatible
 	github.com/stretchr/testify v1.7.1
 	github.com/supranational/blst v0.3.7
 	github.com/umbracle/ethgo v0.1.2

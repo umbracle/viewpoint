@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/mitchellh/cli"
+	"github.com/ryanuber/columnize"
 	"github.com/umbracle/viewpoint/internal/cmd/server"
 	"github.com/umbracle/viewpoint/internal/server/proto"
 	"google.golang.org/grpc"
@@ -30,8 +31,18 @@ func Commands() map[string]cli.CommandFactory {
 				UI: ui,
 			}, nil
 		},
-		"node": func() (cli.Command, error) {
-			return &NodeCommand{
+		"node deploy": func() (cli.Command, error) {
+			return &NodeDeployCommand{
+				Meta: meta,
+			}, nil
+		},
+		"node list": func() (cli.Command, error) {
+			return &NodeListCommand{
+				Meta: meta,
+			}, nil
+		},
+		"node status": func() (cli.Command, error) {
+			return &NodeStatusCommand{
 				Meta: meta,
 			}, nil
 		},
@@ -62,4 +73,17 @@ func (m *Meta) Conn() (proto.E2EServiceClient, error) {
 	}
 	clt := proto.NewE2EServiceClient(conn)
 	return clt, nil
+}
+
+func formatList(in []string) string {
+	columnConf := columnize.DefaultConfig()
+	columnConf.Empty = "<none>"
+	return columnize.Format(in, columnConf)
+}
+
+func formatKV(in []string) string {
+	columnConf := columnize.DefaultConfig()
+	columnConf.Empty = "<none>"
+	columnConf.Glue = " = "
+	return columnize.Format(in, columnConf)
 }

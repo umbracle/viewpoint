@@ -8,7 +8,7 @@ import (
 )
 
 // E2ENodeCommand is the command to deploy an e2e network
-type NodeCommand struct {
+type NodeDeployCommand struct {
 	*Meta
 
 	nodeType      string
@@ -19,18 +19,18 @@ type NodeCommand struct {
 }
 
 // Help implements the cli.Command interface
-func (c *NodeCommand) Help() string {
+func (c *NodeDeployCommand) Help() string {
 	return ""
 }
 
 // Synopsis implements the cli.Command interface
-func (c *NodeCommand) Synopsis() string {
+func (c *NodeDeployCommand) Synopsis() string {
 	return ""
 }
 
 // Run implements the cli.Command interface
-func (c *NodeCommand) Run(args []string) int {
-	flags := c.FlagSet("node")
+func (c *NodeDeployCommand) Run(args []string) int {
+	flags := c.FlagSet("node deploy")
 
 	flags.StringVar(&c.nodeType, "node-type", "", "")
 	flags.Uint64Var(&c.numValidators, "num-validators", 0, "")
