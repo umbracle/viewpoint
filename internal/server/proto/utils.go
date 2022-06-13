@@ -27,3 +27,8 @@ const (
 	// NodePortPrysmGrpc is the specific prysm port for its Grpc server
 	NodePortPrysmGrpc = "eth2.prysm.grpc"
 )
+
+const (
+	NodeClientLabel = "NodeClient"
+	NodeTypeLabel   = "NodeType"
+)

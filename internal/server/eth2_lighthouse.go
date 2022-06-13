@@ -30,8 +30,8 @@ func NewLighthouseBeacon(config *BeaconConfig) (*spec.Spec, error) {
 		"--enable-private-discovery",
 	}
 	spec := &spec.Spec{}
-	spec.WithNodeClient(proto.NodeClient_Lighthouse).
-		WithNodeType(proto.NodeType_Beacon).
+	spec.WithLabel(proto.NodeClientLabel, proto.NodeClient_Lighthouse.String()).
+		WithLabel(proto.NodeTypeLabel, proto.NodeType_Beacon.String()).
 		WithContainer("sigp/lighthouse").
 		WithTag("v2.2.1").
 		WithCmd(cmd).
@@ -56,8 +56,8 @@ func NewLighthouseValidator(config *ValidatorConfig) (*spec.Spec, error) {
 		"--init-slashing-protection",
 	}
 	spec := &spec.Spec{}
-	spec.WithNodeClient(proto.NodeClient_Lighthouse).
-		WithNodeType(proto.NodeType_Validator).
+	spec.WithLabel(proto.NodeClientLabel, proto.NodeClient_Lighthouse.String()).
+		WithLabel(proto.NodeTypeLabel, proto.NodeType_Validator.String()).
 		WithContainer("sigp/lighthouse").
 		WithTag("v2.2.1").
 		WithCmd(cmd).

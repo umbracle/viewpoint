@@ -33,7 +33,7 @@ type node struct {
 	id         string
 	opts       *spec.Spec
 	ip         string
-	ports      map[proto.NodePort]uint64
+	ports      map[string]uint64
 	waitCh     chan struct{}
 	exitResult *exitResult
 	mountMap   map[string]string
@@ -132,7 +132,7 @@ func (d *Docker) Deploy(spec *spec.Spec) (*node, error) {
 		cli:      d.cli,
 		opts:     spec,
 		ip:       "127.0.0.1",
-		ports:    map[proto.NodePort]uint64{},
+		ports:    map[string]uint64{},
 		waitCh:   make(chan struct{}),
 		mountMap: mountMap,
 	}
@@ -220,11 +220,11 @@ func (n *node) execCmd(cmd string) (string, error) {
 				panic(fmt.Sprintf("Port '%s' not found", name))
 			}
 			var relPort uint64
-			if foundPort, ok := n.ports[name]; ok {
+			if foundPort, ok := n.ports[string(name)]; ok {
 				relPort = foundPort
 			} else {
 				relPort = atomic.AddUint64(port, 1)
-				n.ports[name] = relPort
+				n.ports[string(name)] = relPort
 			}
 			return fmt.Sprintf("%d", relPort)
 		},
@@ -265,7 +265,7 @@ func (n *node) run() {
 	close(n.waitCh)
 }
 
-func (n *node) GetAddr(port proto.NodePort) string {
+func (n *node) GetAddr(port string) string {
 	num, ok := n.ports[port]
 	if !ok {
 		panic(fmt.Sprintf("port '%s' not found", port))
@@ -314,10 +314,6 @@ func (n *node) GetLogs() (string, error) {
 
 func (n *node) IP() string {
 	return n.ip
-}
-
-func (n *node) Type() proto.NodeClient {
-	return n.opts.NodeClient
 }
 
 var defaultTimeoutDuration = 1 * time.Minute

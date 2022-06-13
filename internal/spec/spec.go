@@ -4,12 +4,10 @@ import (
 	"encoding"
 	"encoding/json"
 	"io"
-
-	"github.com/umbracle/viewpoint/internal/server/proto"
 )
 
 type Node interface {
-	GetAddr(port proto.NodePort) string
+	GetAddr(port string) string
 	GetLogs() (string, error)
 	Spec() *Spec
 	Stop() error
@@ -25,11 +23,12 @@ type Spec struct {
 	Files      map[string][]byte
 	Output     []io.Writer
 	Labels     map[string]string
-	NodeClient proto.NodeClient
-	NodeType   proto.NodeType
-	User       string
+	//NodeClient proto.NodeClient
+	//NodeType   proto.NodeType
+	User string
 }
 
+/*
 func (s *Spec) WithNodeClient(nodeClient proto.NodeClient) *Spec {
 	s.NodeClient = nodeClient
 	return s
@@ -38,6 +37,11 @@ func (s *Spec) WithNodeClient(nodeClient proto.NodeClient) *Spec {
 func (s *Spec) WithNodeType(nodeType proto.NodeType) *Spec {
 	s.NodeType = nodeType
 	return s
+}
+*/
+
+func (s *Spec) HasLabel(k, v string) bool {
+	return s.Labels[k] == v
 }
 
 func (s *Spec) WithContainer(repository string) *Spec {
@@ -72,6 +76,11 @@ func (s *Spec) WithMount(mount string) *Spec {
 
 func (s *Spec) WithOutput(output io.Writer) *Spec {
 	s.Output = append(s.Output, output)
+	return s
+}
+
+func (s *Spec) WithLabel(k, v string) *Spec {
+	s.Labels[k] = v
 	return s
 }
 

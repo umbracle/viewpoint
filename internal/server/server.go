@@ -263,7 +263,8 @@ func (s *Server) DeployValidator(ctx context.Context, req *proto.DeployValidator
 	}
 
 	beacons := s.filterLocked(func(spec *spec.Spec) bool {
-		return spec.NodeType == proto.NodeType_Beacon && spec.NodeClient == req.NodeClient
+		return spec.HasLabel(proto.NodeTypeLabel, proto.NodeType_Beacon.String()) &&
+			spec.HasLabel(proto.NodeClientLabel, req.NodeClient.String())
 	})
 	if len(beacons) == 0 {
 		return nil, fmt.Errorf("no beacon node found for client %s", req.NodeClient.String())

@@ -33,8 +33,8 @@ func NewTekuBeacon(config *BeaconConfig) (*spec.Spec, error) {
 	}
 
 	spec := &spec.Spec{}
-	spec.WithNodeClient(proto.NodeClient_Teku).
-		WithNodeType(proto.NodeType_Beacon).
+	spec.WithLabel(proto.NodeClientLabel, proto.NodeClient_Teku.String()).
+		WithLabel(proto.NodeTypeLabel, proto.NodeType_Beacon.String()).
 		WithContainer("consensys/teku").
 		WithTag("22.4.0").
 		WithCmd(cmd).
@@ -59,8 +59,8 @@ func NewTekuValidator(config *ValidatorConfig) (*spec.Spec, error) {
 		"--validator-keys", "/data/keys:/data/pass",
 	}
 	spec := &spec.Spec{}
-	spec.WithNodeClient(proto.NodeClient_Teku).
-		WithNodeType(proto.NodeType_Validator).
+	spec.WithLabel(proto.NodeClientLabel, proto.NodeClient_Teku.String()).
+		WithLabel(proto.NodeTypeLabel, proto.NodeType_Validator.String()).
 		WithContainer("consensys/teku").
 		WithTag("22.4.0").
 		WithCmd(cmd).

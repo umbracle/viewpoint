@@ -43,8 +43,8 @@ func NewPrysmBeacon(config *BeaconConfig) (*spec.Spec, error) {
 		cmd = append(cmd, "--bootstrap-node", config.Bootnode)
 	}
 	spec := &spec.Spec{}
-	spec.WithNodeClient(proto.NodeClient_Prysm).
-		WithNodeType(proto.NodeType_Beacon).
+	spec.WithLabel(proto.NodeClientLabel, proto.NodeClient_Prysm.String()).
+		WithLabel(proto.NodeTypeLabel, proto.NodeType_Beacon.String()).
 		WithContainer("gcr.io/prysmaticlabs/prysm/beacon-chain").
 		WithTag("v2.0.6").
 		WithCmd(cmd).
@@ -81,8 +81,8 @@ func NewPrysmValidator(config *ValidatorConfig) (*spec.Spec, error) {
 		"--chain-config-file", "/data/config.yaml",
 	}
 	spec := &spec.Spec{}
-	spec.WithNodeClient(proto.NodeClient_Prysm).
-		WithNodeType(proto.NodeType_Validator).
+	spec.WithLabel(proto.NodeClientLabel, proto.NodeClient_Prysm.String()).
+		WithLabel(proto.NodeTypeLabel, proto.NodeType_Validator.String()).
 		WithContainer("gcr.io/prysmaticlabs/prysm/validator").
 		WithTag("v2.0.6").
 		WithCmd(cmd).
