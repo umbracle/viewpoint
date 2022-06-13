@@ -1,4 +1,4 @@
-package server
+package docker
 
 import (
 	"bytes"
@@ -21,6 +21,7 @@ import (
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/hashicorp/go-hclog"
 	"github.com/umbracle/viewpoint/internal/server/proto"
+	"github.com/umbracle/viewpoint/internal/spec"
 )
 
 type exitResult struct {
@@ -30,9 +31,9 @@ type exitResult struct {
 type node struct {
 	cli        *client.Client
 	id         string
-	opts       *Spec
+	opts       *spec.Spec
 	ip         string
-	ports      map[NodePort]uint64
+	ports      map[proto.NodePort]uint64
 	waitCh     chan struct{}
 	exitResult *exitResult
 	mountMap   map[string]string
@@ -59,7 +60,7 @@ func (d *Docker) SetLogger(logger hclog.Logger) {
 	d.logger = logger
 }
 
-func (d *Docker) Deploy(spec *Spec) (*node, error) {
+func (d *Docker) Deploy(spec *spec.Spec) (*node, error) {
 	ctx := context.Background()
 
 	if spec.Tag == "" {
@@ -131,7 +132,7 @@ func (d *Docker) Deploy(spec *Spec) (*node, error) {
 		cli:      d.cli,
 		opts:     spec,
 		ip:       "127.0.0.1",
-		ports:    map[NodePort]uint64{},
+		ports:    map[proto.NodePort]uint64{},
 		waitCh:   make(chan struct{}),
 		mountMap: mountMap,
 	}
@@ -194,38 +195,26 @@ func (d *Docker) Deploy(spec *Spec) (*node, error) {
 	return n, nil
 }
 
-type NodePort string
-
-const (
-	// NodePortEth1Http is the http port for the eth1 node.
-	NodePortEth1Http = "eth1.http"
-
-	// NodePortP2P is the p2p port for an eth2 node.
-	NodePortP2P = "eth2.p2p"
-
-	// NodePortHttp is the http port for an eth2 node.
-	NodePortHttp = "eth2.http"
-
-	// NodePortPrysmGrpc is the specific prysm port for its Grpc server
-	NodePortPrysmGrpc = "eth2.prysm.grpc"
-)
+func (n *node) Spec() *spec.Spec {
+	return n.opts
+}
 
 func uintPtr(i uint64) *uint64 {
 	return &i
 }
 
 // port ranges for each node value.
-var ports = map[NodePort]*uint64{
-	NodePortEth1Http:  uintPtr(8000),
-	NodePortP2P:       uintPtr(5000),
-	NodePortHttp:      uintPtr(7000),
-	NodePortPrysmGrpc: uintPtr(4000),
+var ports = map[proto.NodePort]*uint64{
+	proto.NodePortEth1Http:  uintPtr(8000),
+	proto.NodePortP2P:       uintPtr(5000),
+	proto.NodePortHttp:      uintPtr(7000),
+	proto.NodePortPrysmGrpc: uintPtr(4000),
 }
 
 func (n *node) execCmd(cmd string) (string, error) {
 	t := template.New("node_cmd")
 	t.Funcs(template.FuncMap{
-		"Port": func(name NodePort) string {
+		"Port": func(name proto.NodePort) string {
 			port, ok := ports[name]
 			if !ok {
 				panic(fmt.Sprintf("Port '%s' not found", name))
@@ -276,7 +265,7 @@ func (n *node) run() {
 	close(n.waitCh)
 }
 
-func (n *node) GetAddr(port NodePort) string {
+func (n *node) GetAddr(port proto.NodePort) string {
 	num, ok := n.ports[port]
 	if !ok {
 		panic(fmt.Sprintf("port '%s' not found", port))

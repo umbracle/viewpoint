@@ -3,6 +3,8 @@ package server
 import (
 	"fmt"
 	"regexp"
+
+	specX "github.com/umbracle/viewpoint/internal/spec"
 )
 
 var (
@@ -10,13 +12,13 @@ var (
 )
 
 type Bootnode struct {
-	*Spec
+	*specX.Spec
 
 	Enr string
 }
 
 func NewBootnode() *Bootnode {
-	decodeEnr := func(node *node) (string, error) {
+	decodeEnr := func(node specX.Node) (string, error) {
 		logs, err := node.GetLogs()
 		if err != nil {
 			return "", err
@@ -38,11 +40,11 @@ func NewBootnode() *Bootnode {
 
 	b := &Bootnode{}
 
-	spec := &Spec{}
+	spec := &specX.Spec{}
 	spec.WithName("bootnode").
 		WithCmd(cmd).
 		WithContainer("gcr.io/prysmaticlabs/prysm/bootnode").
-		WithRetry(func(n *node) error {
+		WithRetry(func(n specX.Node) error {
 			enr, err := decodeEnr(n)
 			if err != nil {
 				return err

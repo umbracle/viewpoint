@@ -7,10 +7,11 @@ import (
 	"github.com/umbracle/ethgo/keystore"
 	"github.com/umbracle/viewpoint/internal/bls"
 	"github.com/umbracle/viewpoint/internal/server/proto"
+	"github.com/umbracle/viewpoint/internal/spec"
 )
 
 // NewPrysmBeacon creates a new prysm server
-func NewPrysmBeacon(config *BeaconConfig) (*Spec, error) {
+func NewPrysmBeacon(config *BeaconConfig) (*spec.Spec, error) {
 	cmd := []string{
 		"--verbosity", "debug",
 		// eth1x
@@ -41,7 +42,7 @@ func NewPrysmBeacon(config *BeaconConfig) (*Spec, error) {
 	if config.Bootnode != "" {
 		cmd = append(cmd, "--bootstrap-node", config.Bootnode)
 	}
-	spec := &Spec{}
+	spec := &spec.Spec{}
 	spec.WithNodeClient(proto.NodeClient_Prysm).
 		WithNodeType(proto.NodeType_Beacon).
 		WithContainer("gcr.io/prysmaticlabs/prysm/beacon-chain").
@@ -56,7 +57,7 @@ func NewPrysmBeacon(config *BeaconConfig) (*Spec, error) {
 
 const defWalletPassword = "qwerty"
 
-func NewPrysmValidator(config *ValidatorConfig) (*Spec, error) {
+func NewPrysmValidator(config *ValidatorConfig) (*spec.Spec, error) {
 	store := &accountStore{}
 	for _, acct := range config.Accounts {
 		store.AddKey(acct.Bls)
@@ -75,11 +76,11 @@ func NewPrysmValidator(config *ValidatorConfig) (*Spec, error) {
 		"--wallet-dir", "/data",
 		"--wallet-password-file", "/data/wallet-password.txt",
 		// beacon node reference of the GRPC endpoint
-		"--beacon-rpc-provider", strings.TrimPrefix(config.Beacon.GetAddr(NodePortPrysmGrpc), "http://"),
+		"--beacon-rpc-provider", strings.TrimPrefix(config.Beacon.GetAddr(proto.NodePortPrysmGrpc), "http://"),
 		// config
 		"--chain-config-file", "/data/config.yaml",
 	}
-	spec := &Spec{}
+	spec := &spec.Spec{}
 	spec.WithNodeClient(proto.NodeClient_Prysm).
 		WithNodeType(proto.NodeType_Validator).
 		WithContainer("gcr.io/prysmaticlabs/prysm/validator").

@@ -5,10 +5,11 @@ import (
 
 	"github.com/umbracle/viewpoint/internal/bls"
 	"github.com/umbracle/viewpoint/internal/server/proto"
+	"github.com/umbracle/viewpoint/internal/spec"
 )
 
 // NewTekuBeacon creates a new teku server
-func NewTekuBeacon(config *BeaconConfig) (*Spec, error) {
+func NewTekuBeacon(config *BeaconConfig) (*spec.Spec, error) {
 	cmd := []string{
 		// debug log
 		"--logging", "debug",
@@ -31,7 +32,7 @@ func NewTekuBeacon(config *BeaconConfig) (*Spec, error) {
 		cmd = append(cmd, "--p2p-discovery-bootnodes", config.Bootnode)
 	}
 
-	spec := &Spec{}
+	spec := &spec.Spec{}
 	spec.WithNodeClient(proto.NodeClient_Teku).
 		WithNodeType(proto.NodeType_Beacon).
 		WithContainer("consensys/teku").
@@ -45,11 +46,11 @@ func NewTekuBeacon(config *BeaconConfig) (*Spec, error) {
 	return spec, nil
 }
 
-func NewTekuValidator(config *ValidatorConfig) (*Spec, error) {
+func NewTekuValidator(config *ValidatorConfig) (*spec.Spec, error) {
 	cmd := []string{
 		"vc",
 		// beacon api
-		"--beacon-node-api-endpoint", config.Beacon.GetAddr(NodePortHttp),
+		"--beacon-node-api-endpoint", config.Beacon.GetAddr(proto.NodePortHttp),
 		// data
 		"--data-path", "/data",
 		// config
@@ -57,7 +58,7 @@ func NewTekuValidator(config *ValidatorConfig) (*Spec, error) {
 		// keys
 		"--validator-keys", "/data/keys:/data/pass",
 	}
-	spec := &Spec{}
+	spec := &spec.Spec{}
 	spec.WithNodeClient(proto.NodeClient_Teku).
 		WithNodeType(proto.NodeType_Validator).
 		WithContainer("consensys/teku").

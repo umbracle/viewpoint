@@ -14,9 +14,11 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/umbracle/ethgo"
 	"github.com/umbracle/ethgo/jsonrpc"
+	"github.com/umbracle/viewpoint/internal/docker"
 	"github.com/umbracle/viewpoint/internal/genesis"
 	"github.com/umbracle/viewpoint/internal/http"
 	"github.com/umbracle/viewpoint/internal/server/proto"
+	"github.com/umbracle/viewpoint/internal/spec"
 	"google.golang.org/grpc"
 )
 
@@ -25,15 +27,15 @@ type Server struct {
 	config *Config
 	logger hclog.Logger
 
-	eth1           *node
+	eth1           spec.Node
 	depositHandler *depositHandler
 
 	// runtime to deploy containers
-	docker *Docker
+	docker *docker.Docker
 
 	lock        sync.Mutex
 	fileLogger  *fileLogger
-	nodes       []*node
+	nodes       []spec.Node
 	bootnodeENR string
 
 	// genesis data
@@ -42,7 +44,7 @@ type Server struct {
 }
 
 func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
-	docker, err := NewDocker()
+	docker, err := docker.NewDocker()
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +60,7 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	}
 
 	// get latest block
-	provider, err := jsonrpc.NewClient(eth1.GetAddr(NodePortEth1Http))
+	provider, err := jsonrpc.NewClient(eth1.GetAddr(proto.NodePortEth1Http))
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +82,7 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		return nil, err
 	}
 
-	depositHandler, err := newDepositHandler(eth1.GetAddr(NodePortEth1Http))
+	depositHandler, err := newDepositHandler(eth1.GetAddr(proto.NodePortEth1Http))
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +94,7 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		return nil, err
 	}
 
-	logger.Info("eth1 server deployed", "addr", eth1.GetAddr(NodePortEth1Http))
+	logger.Info("eth1 server deployed", "addr", eth1.GetAddr(proto.NodePortEth1Http))
 	logger.Info("deposit contract deployed", "addr", depositHandler.deposit.String())
 
 	config.Spec.DepositContract = depositHandler.deposit.String()
@@ -102,7 +104,7 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		logger: logger,
 		eth1:   eth1,
 		docker: docker,
-		nodes: []*node{
+		nodes: []spec.Node{
 			eth1,
 			bootnode,
 		},
@@ -164,10 +166,10 @@ func (s *Server) Stop() {
 	}
 }
 
-func (s *Server) filterLocked(cond func(opts *Spec) bool) []*node {
-	res := []*node{}
+func (s *Server) filterLocked(cond func(opts *spec.Spec) bool) []spec.Node {
+	res := []spec.Node{}
 	for _, i := range s.nodes {
-		if cond(i.opts) {
+		if cond(i.Spec()) {
 			res = append(res, i)
 		}
 	}
@@ -182,13 +184,13 @@ func (s *Server) DeployNode(ctx context.Context, req *proto.DeployNodeRequest) (
 
 	bCfg := &BeaconConfig{
 		Spec:       s.config.Spec,
-		Eth1:       s.eth1.GetAddr(NodePortEth1Http),
+		Eth1:       s.eth1.GetAddr(proto.NodePortEth1Http),
 		GenesisSSZ: s.genesisSSZ,
 	}
 
 	if !useBootnode {
 		if len(s.nodes) != 0 {
-			client := http.NewHttpClient(s.nodes[0].GetAddr(NodePortHttp))
+			client := http.NewHttpClient(s.nodes[0].GetAddr(proto.NodePortHttp))
 			identity, err := client.NodeIdentity()
 			if err != nil {
 				return nil, fmt.Errorf("cannto get a bootnode: %v", err)
@@ -241,7 +243,7 @@ func (s *Server) DeployNode(ctx context.Context, req *proto.DeployNodeRequest) (
 
 	s.nodes = append(s.nodes, node)
 
-	s.logger.Info("beacon node started", "client", req.NodeClient, "mount-map", node.mountMap)
+	s.logger.Info("beacon node started", "client", req.NodeClient)
 	return &proto.DeployNodeResponse{}, nil
 }
 
@@ -260,7 +262,7 @@ func (s *Server) DeployValidator(ctx context.Context, req *proto.DeployValidator
 		return nil, fmt.Errorf("no number of validators provided")
 	}
 
-	beacons := s.filterLocked(func(spec *Spec) bool {
+	beacons := s.filterLocked(func(spec *spec.Spec) bool {
 		return spec.NodeType == proto.NodeType_Beacon && spec.NodeClient == req.NodeClient
 	})
 	if len(beacons) == 0 {
@@ -355,7 +357,7 @@ func (f *fileLogger) Close() error {
 type ValidatorConfig struct {
 	Spec     *Eth2Spec
 	Accounts []*proto.Account
-	Beacon   *node
+	Beacon   spec.Node
 }
 
 type BeaconConfig struct {
@@ -365,6 +367,6 @@ type BeaconConfig struct {
 	GenesisSSZ []byte
 }
 
-type CreateBeacon2 func(cfg *BeaconConfig) (*Spec, error)
+type CreateBeacon2 func(cfg *BeaconConfig) (*spec.Spec, error)
 
-type CreateValidator2 func(cfg *ValidatorConfig) (*Spec, error)
+type CreateValidator2 func(cfg *ValidatorConfig) (*spec.Spec, error)

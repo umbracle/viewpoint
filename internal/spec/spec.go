@@ -1,4 +1,4 @@
-package server
+package spec
 
 import (
 	"encoding"
@@ -8,11 +8,18 @@ import (
 	"github.com/umbracle/viewpoint/internal/server/proto"
 )
 
+type Node interface {
+	GetAddr(port proto.NodePort) string
+	GetLogs() (string, error)
+	Spec() *Spec
+	Stop() error
+}
+
 type Spec struct {
 	Repository string
 	Tag        string
 	Cmd        []string
-	Retry      func(n *node) error
+	Retry      func(n Node) error
 	Name       string
 	Mount      []string
 	Files      map[string][]byte
@@ -53,7 +60,7 @@ func (s *Spec) WithName(name string) *Spec {
 	return s
 }
 
-func (s *Spec) WithRetry(retry func(n *node) error) *Spec {
+func (s *Spec) WithRetry(retry func(n Node) error) *Spec {
 	s.Retry = retry
 	return s
 }

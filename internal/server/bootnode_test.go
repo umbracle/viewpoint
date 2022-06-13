@@ -4,10 +4,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/umbracle/viewpoint/internal/docker"
 )
 
 func TestBootnode(t *testing.T) {
-	d, err := NewDocker()
+	d, err := docker.NewDocker()
 	assert.NoError(t, err)
 
 	bootnode := NewBootnode()

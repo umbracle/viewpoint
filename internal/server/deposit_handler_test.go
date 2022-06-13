@@ -5,18 +5,19 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/umbracle/ethgo"
+	"github.com/umbracle/viewpoint/internal/docker"
 	"github.com/umbracle/viewpoint/internal/server/proto"
 )
 
 func TestDepositHandler_Deposit(t *testing.T) {
-	d, err := NewDocker()
+	d, err := docker.NewDocker()
 	assert.NoError(t, err)
 
 	node, err := d.Deploy(NewEth1Server())
 	assert.NoError(t, err)
 	defer node.Stop()
 
-	handler, err := newDepositHandler(node.GetAddr(NodePortEth1Http))
+	handler, err := newDepositHandler(node.GetAddr(proto.NodePortEth1Http))
 	assert.NoError(t, err)
 
 	code, err := handler.Provider().Eth().GetCode(handler.deposit, ethgo.Latest)

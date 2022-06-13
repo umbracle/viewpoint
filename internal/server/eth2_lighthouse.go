@@ -5,10 +5,11 @@ import (
 
 	"github.com/umbracle/viewpoint/internal/bls"
 	"github.com/umbracle/viewpoint/internal/server/proto"
+	"github.com/umbracle/viewpoint/internal/spec"
 )
 
 // NewLighthouseBeacon creates a new prysm server
-func NewLighthouseBeacon(config *BeaconConfig) (*Spec, error) {
+func NewLighthouseBeacon(config *BeaconConfig) (*spec.Spec, error) {
 	cmd := []string{
 		"lighthouse", "beacon_node",
 		"--http", "--http-address", "0.0.0.0",
@@ -28,7 +29,7 @@ func NewLighthouseBeacon(config *BeaconConfig) (*Spec, error) {
 		"--disable-packet-filter",
 		"--enable-private-discovery",
 	}
-	spec := &Spec{}
+	spec := &spec.Spec{}
 	spec.WithNodeClient(proto.NodeClient_Lighthouse).
 		WithNodeType(proto.NodeType_Beacon).
 		WithContainer("sigp/lighthouse").
@@ -45,16 +46,16 @@ func NewLighthouseBeacon(config *BeaconConfig) (*Spec, error) {
 	return spec, nil
 }
 
-func NewLighthouseValidator(config *ValidatorConfig) (*Spec, error) {
+func NewLighthouseValidator(config *ValidatorConfig) (*spec.Spec, error) {
 	cmd := []string{
 		"lighthouse", "vc",
 		"--debug-level", "debug",
 		"--datadir", "/data/node",
-		"--beacon-nodes", config.Beacon.GetAddr(NodePortHttp),
+		"--beacon-nodes", config.Beacon.GetAddr(proto.NodePortHttp),
 		"--testnet-dir", "/data",
 		"--init-slashing-protection",
 	}
-	spec := &Spec{}
+	spec := &spec.Spec{}
 	spec.WithNodeClient(proto.NodeClient_Lighthouse).
 		WithNodeType(proto.NodeType_Validator).
 		WithContainer("sigp/lighthouse").
