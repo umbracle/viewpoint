@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/umbracle/ethgo"
+	"github.com/umbracle/viewpoint/internal/components"
 	"github.com/umbracle/viewpoint/internal/docker"
 	"github.com/umbracle/viewpoint/internal/server/proto"
 )
@@ -13,7 +14,7 @@ func TestDepositHandler_Deposit(t *testing.T) {
 	d, err := docker.NewDocker()
 	assert.NoError(t, err)
 
-	node, err := d.Deploy(NewEth1Server())
+	node, err := d.Deploy(components.NewEth1Server())
 	assert.NoError(t, err)
 	defer node.Stop()
 

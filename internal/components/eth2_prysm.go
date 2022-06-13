@@ -1,4 +1,4 @@
-package server
+package components
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 )
 
 // NewPrysmBeacon creates a new prysm server
-func NewPrysmBeacon(config *BeaconConfig) (*spec.Spec, error) {
+func NewPrysmBeacon(config *proto.BeaconConfig) (*spec.Spec, error) {
 	cmd := []string{
 		"--verbosity", "debug",
 		// eth1x
@@ -57,7 +57,7 @@ func NewPrysmBeacon(config *BeaconConfig) (*spec.Spec, error) {
 
 const defWalletPassword = "qwerty"
 
-func NewPrysmValidator(config *ValidatorConfig) (*spec.Spec, error) {
+func NewPrysmValidator(config *proto.ValidatorConfig) (*spec.Spec, error) {
 	store := &accountStore{}
 	for _, acct := range config.Accounts {
 		store.AddKey(acct.Bls)

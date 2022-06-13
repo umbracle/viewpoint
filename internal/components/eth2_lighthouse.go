@@ -1,4 +1,4 @@
-package server
+package components
 
 import (
 	"encoding/hex"
@@ -9,7 +9,7 @@ import (
 )
 
 // NewLighthouseBeacon creates a new prysm server
-func NewLighthouseBeacon(config *BeaconConfig) (*spec.Spec, error) {
+func NewLighthouseBeacon(config *proto.BeaconConfig) (*spec.Spec, error) {
 	cmd := []string{
 		"lighthouse", "beacon_node",
 		"--http", "--http-address", "0.0.0.0",
@@ -46,7 +46,7 @@ func NewLighthouseBeacon(config *BeaconConfig) (*spec.Spec, error) {
 	return spec, nil
 }
 
-func NewLighthouseValidator(config *ValidatorConfig) (*spec.Spec, error) {
+func NewLighthouseValidator(config *proto.ValidatorConfig) (*spec.Spec, error) {
 	cmd := []string{
 		"lighthouse", "vc",
 		"--debug-level", "debug",

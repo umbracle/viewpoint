@@ -2,6 +2,8 @@ package proto
 
 import (
 	"strings"
+
+	"github.com/umbracle/viewpoint/internal/spec"
 )
 
 func StringToNodeClient(str string) (NodeClient, bool) {
@@ -32,3 +34,20 @@ const (
 	NodeClientLabel = "NodeClient"
 	NodeTypeLabel   = "NodeType"
 )
+
+type ValidatorConfig struct {
+	Spec     []byte
+	Accounts []*Account
+	Beacon   spec.Node
+}
+
+type BeaconConfig struct {
+	Spec       []byte
+	Eth1       string
+	Bootnode   string
+	GenesisSSZ []byte
+}
+
+type CreateBeacon2 func(cfg *BeaconConfig) (*spec.Spec, error)
+
+type CreateValidator2 func(cfg *ValidatorConfig) (*spec.Spec, error)

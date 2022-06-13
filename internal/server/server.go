@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/umbracle/ethgo"
 	"github.com/umbracle/ethgo/jsonrpc"
+	"github.com/umbracle/viewpoint/internal/components"
 	"github.com/umbracle/viewpoint/internal/docker"
 	"github.com/umbracle/viewpoint/internal/genesis"
 	"github.com/umbracle/viewpoint/internal/http"
@@ -49,11 +50,11 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		return nil, err
 	}
 
-	eth1, err := docker.Deploy(NewEth1Server())
+	eth1, err := docker.Deploy(components.NewEth1Server())
 	if err != nil {
 		return nil, err
 	}
-	bootnodeSpec := NewBootnode()
+	bootnodeSpec := components.NewBootnode()
 	bootnode, err := docker.Deploy(bootnodeSpec.Spec)
 	if err != nil {
 		return nil, err
@@ -182,8 +183,8 @@ func (s *Server) DeployNode(ctx context.Context, req *proto.DeployNodeRequest) (
 
 	useBootnode := true
 
-	bCfg := &BeaconConfig{
-		Spec:       s.config.Spec,
+	bCfg := &proto.BeaconConfig{
+		Spec:       s.config.Spec.buildConfig(),
 		Eth1:       s.eth1.GetAddr(proto.NodePortEth1Http),
 		GenesisSSZ: s.genesisSSZ,
 	}
@@ -201,14 +202,14 @@ func (s *Server) DeployNode(ctx context.Context, req *proto.DeployNodeRequest) (
 		bCfg.Bootnode = s.bootnodeENR
 	}
 
-	var beaconFactory CreateBeacon2
+	var beaconFactory proto.CreateBeacon2
 	switch req.NodeClient {
 	case proto.NodeClient_Teku:
-		beaconFactory = NewTekuBeacon
+		beaconFactory = components.NewTekuBeacon
 	case proto.NodeClient_Prysm:
-		beaconFactory = NewPrysmBeacon
+		beaconFactory = components.NewPrysmBeacon
 	case proto.NodeClient_Lighthouse:
-		beaconFactory = NewLighthouseBeacon
+		beaconFactory = components.NewLighthouseBeacon
 	default:
 		return nil, fmt.Errorf("beacon type %s not found", req.NodeClient)
 	}
@@ -291,20 +292,20 @@ func (s *Server) DeployValidator(ctx context.Context, req *proto.DeployValidator
 		return nil, err
 	}
 
-	vCfg := &ValidatorConfig{
+	vCfg := &proto.ValidatorConfig{
 		Accounts: accounts,
-		Spec:     s.config.Spec,
+		Spec:     s.config.Spec.buildConfig(),
 		Beacon:   beacon,
 	}
 
-	var validatorFactory CreateValidator2
+	var validatorFactory proto.CreateValidator2
 	switch req.NodeClient {
 	case proto.NodeClient_Teku:
-		validatorFactory = NewTekuValidator
+		validatorFactory = components.NewTekuValidator
 	case proto.NodeClient_Prysm:
-		validatorFactory = NewPrysmValidator
+		validatorFactory = components.NewPrysmValidator
 	case proto.NodeClient_Lighthouse:
-		validatorFactory = NewLighthouseValidator
+		validatorFactory = components.NewLighthouseValidator
 	default:
 		return nil, fmt.Errorf("validator client %s not found", req.NodeClient)
 	}
@@ -354,20 +355,3 @@ func (f *fileLogger) Close() error {
 	}
 	return nil
 }
-
-type ValidatorConfig struct {
-	Spec     *Eth2Spec
-	Accounts []*proto.Account
-	Beacon   spec.Node
-}
-
-type BeaconConfig struct {
-	Spec       *Eth2Spec
-	Eth1       string
-	Bootnode   string
-	GenesisSSZ []byte
-}
-
-type CreateBeacon2 func(cfg *BeaconConfig) (*spec.Spec, error)
-
-type CreateValidator2 func(cfg *ValidatorConfig) (*spec.Spec, error)

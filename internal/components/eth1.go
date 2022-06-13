@@ -1,6 +1,8 @@
-package server
+package components
 
 import (
+	"net/http"
+
 	"github.com/umbracle/viewpoint/internal/server/proto"
 	specX "github.com/umbracle/viewpoint/internal/spec"
 )
@@ -22,4 +24,13 @@ func NewEth1Server() *specX.Spec {
 			return testHTTPEndpoint(n.GetAddr(proto.NodePortEth1Http))
 		})
 	return spec
+}
+
+func testHTTPEndpoint(endpoint string) error {
+	resp, err := http.Post(endpoint, "application/json", nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return nil
 }

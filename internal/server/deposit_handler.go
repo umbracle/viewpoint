@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/binary"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/umbracle/ethgo"
@@ -182,14 +181,5 @@ func (e *depositHandler) MakeDeposit(account *proto.Account) error {
 	if len(receipt.Logs) != 1 {
 		return fmt.Errorf("log not found")
 	}
-	return nil
-}
-
-func testHTTPEndpoint(endpoint string) error {
-	resp, err := http.Post(endpoint, "application/json", nil)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
 	return nil
 }

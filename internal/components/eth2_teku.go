@@ -1,4 +1,4 @@
-package server
+package components
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 )
 
 // NewTekuBeacon creates a new teku server
-func NewTekuBeacon(config *BeaconConfig) (*spec.Spec, error) {
+func NewTekuBeacon(config *proto.BeaconConfig) (*spec.Spec, error) {
 	cmd := []string{
 		// debug log
 		"--logging", "debug",
@@ -46,7 +46,7 @@ func NewTekuBeacon(config *BeaconConfig) (*spec.Spec, error) {
 	return spec, nil
 }
 
-func NewTekuValidator(config *ValidatorConfig) (*spec.Spec, error) {
+func NewTekuValidator(config *proto.ValidatorConfig) (*spec.Spec, error) {
 	cmd := []string{
 		"vc",
 		// beacon api
