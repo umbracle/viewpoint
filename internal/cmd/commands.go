@@ -46,6 +46,11 @@ func Commands() map[string]cli.CommandFactory {
 				Meta: meta,
 			}, nil
 		},
+		"deposit": func() (cli.Command, error) {
+			return &DepositCommand{
+				Meta: meta,
+			}, nil
+		},
 		"version": func() (cli.Command, error) {
 			return &VersionCommand{
 				UI: ui,

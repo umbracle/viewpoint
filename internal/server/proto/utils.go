@@ -1,6 +1,7 @@
 package proto
 
 import (
+	"encoding/hex"
 	"strings"
 
 	"github.com/umbracle/viewpoint/internal/spec"
@@ -62,4 +63,16 @@ type CreateValidator2 func(cfg *ValidatorConfig) (*spec.Spec, error)
 
 type IsNodeDeployRequest_NodeType interface {
 	isNodeDeployRequest_NodeType
+}
+
+func (a *Account) ToStub() (*AccountStub, error) {
+	priv, err := a.Bls.Prv.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	stub := &AccountStub{
+		PrivKey: hex.EncodeToString(priv),
+		PubKey:  hex.EncodeToString(a.Bls.Pub.Serialize()),
+	}
+	return stub, nil
 }

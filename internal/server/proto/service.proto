@@ -5,9 +5,20 @@ package proto;
 option go_package = "/internal/server/proto";
 
 service E2EService {
+    rpc Deposit(DepositRequest) returns (DepositResponse);
     rpc NodeDeploy(NodeDeployRequest) returns (NodeDeployResponse);
     rpc NodeList(NodeListRequest) returns (NodeListResponse);
     rpc NodeStatus(NodeStatusRequest) returns (NodeStatusResponse);
+}
+
+message DepositRequest {
+    uint64 numValidators = 1;
+    bool withDeposit = 2;
+}
+
+message DepositResponse {
+    string tranchPath = 1;
+    repeated AccountStub accounts = 2;
 }
 
 message NodeDeployRequest {
@@ -68,4 +79,9 @@ enum NodeClient {
     Prysm = 1; 
     Teku  = 2;
     Lighthouse = 3;
+}
+
+message AccountStub {
+    string privKey = 1;
+    string pubKey = 2;
 }

@@ -2,12 +2,14 @@ package server
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
@@ -36,6 +38,8 @@ type Server struct {
 	fileLogger  *fileLogger
 	nodes       []spec.Node
 	bootnodeENR string
+
+	numTranches int
 
 	// genesis data
 	genesisSSZ      []byte
@@ -114,10 +118,10 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		genesisSSZ:      genesisSSZ,
 	}
 
-	if err := srv.writeFile("spec.yaml", config.Spec.buildConfig()); err != nil {
+	if _, err := srv.writeFile("spec.yaml", config.Spec.buildConfig()); err != nil {
 		return nil, err
 	}
-	if err := srv.writeFile("genesis.ssz", genesisSSZ); err != nil {
+	if _, err := srv.writeFile("genesis.ssz", genesisSSZ); err != nil {
 		return nil, err
 	}
 
@@ -140,17 +144,22 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	return srv, nil
 }
 
-func (s *Server) writeFile(path string, content []byte) error {
-	localPath := filepath.Join("e2e-"+s.config.Name, path)
+func (s *Server) writeFile(path string, content []byte) (string, error) {
+	pwdPath, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
 
-	parentDir := filepath.Dir(localPath)
+	fullPath := filepath.Join(pwdPath, "e2e-"+s.config.Name, path)
+
+	parentDir := filepath.Dir(fullPath)
 	if err := os.MkdirAll(parentDir, 0700); err != nil {
-		return err
+		return "", err
 	}
-	if err := ioutil.WriteFile(localPath, []byte(content), 0644); err != nil {
-		return err
+	if err := ioutil.WriteFile(fullPath, []byte(content), 0644); err != nil {
+		return "", err
 	}
-	return nil
+	return fullPath, nil
 }
 
 func (s *Server) Stop() {
@@ -173,6 +182,75 @@ func (s *Server) filterLocked(cond func(opts *spec.Spec) bool) []spec.Node {
 		}
 	}
 	return res
+}
+
+type Tranche struct {
+	Accounts []*proto.Account
+	Filepath string
+}
+
+func (s *Server) createValidatorsTranche(numValidators int, withDeposit bool) (*Tranche, error) {
+	var accounts []*proto.Account
+
+	if withDeposit {
+		// send deposits to the genesis contract
+		accounts = proto.NewAccounts(numValidators)
+
+		if err := s.depositHandler.MakeDeposits(accounts); err != nil {
+			return nil, err
+		}
+	} else {
+		// deploy from the genesis accounts set
+		pickNumAccounts := min(numValidators, len(s.genesisAccounts))
+		if pickNumAccounts == 0 {
+			return nil, fmt.Errorf("there are no more genesis accounts to use")
+		}
+		accounts, s.genesisAccounts = s.genesisAccounts[:pickNumAccounts], s.genesisAccounts[pickNumAccounts:]
+	}
+
+	// create a tranche file on the datadir
+	privKeys := []string{}
+	for _, acct := range accounts {
+		priv, err := acct.Bls.Prv.Marshal()
+		if err != nil {
+			return nil, err
+		}
+		privKeys = append(privKeys, hex.EncodeToString(priv[:]))
+	}
+	tranchPath, err := s.writeFile(fmt.Sprintf("tranche_%d.txt", s.numTranches), []byte(strings.Join(privKeys, "\n")))
+	if err != nil {
+		return nil, err
+	}
+	s.numTranches++
+
+	tranche := &Tranche{
+		Accounts: accounts,
+		Filepath: tranchPath,
+	}
+	return tranche, nil
+}
+
+func (s *Server) Deposit(ctx context.Context, req *proto.DepositRequest) (*proto.DepositResponse, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	tranche, err := s.createValidatorsTranche(int(req.NumValidators), req.WithDeposit)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &proto.DepositResponse{
+		TranchPath: tranche.Filepath,
+		Accounts:   []*proto.AccountStub{},
+	}
+	for _, acct := range tranche.Accounts {
+		stub, err := acct.ToStub()
+		if err != nil {
+			return nil, err
+		}
+		resp.Accounts = append(resp.Accounts, stub)
+	}
+	return resp, nil
 }
 
 func (s *Server) NodeDeploy(ctx context.Context, req *proto.NodeDeployRequest) (*proto.NodeDeployResponse, error) {
@@ -217,7 +295,7 @@ func (s *Server) NodeDeploy(ctx context.Context, req *proto.NodeDeployRequest) (
 	var node *proto.Node
 
 	if _, ok := req.NodeType.(*proto.NodeDeployRequest_Beacon_); ok {
-		name := fmt.Sprintf("beacon-%d-%s", numOfNodes(proto.NodeType_Beacon), req.NodeClient.String())
+		name := fmt.Sprintf("beacon-%d-%s", numOfNodes(proto.NodeType_Beacon), strings.ToLower(req.NodeClient.String()))
 
 		bCfg := &proto.BeaconConfig{
 			Spec:       s.config.Spec.buildConfig(),
@@ -257,28 +335,16 @@ func (s *Server) NodeDeploy(ctx context.Context, req *proto.NodeDeployRequest) (
 		}
 
 		target := beacons[0]
-		var accounts []*proto.Account
 
-		if deploy.WithDeposit {
-			// send deposits to the genesis contract
-			accounts = proto.NewAccounts(int(deploy.NumValidators))
-
-			if err := s.depositHandler.MakeDeposits(accounts); err != nil {
-				return nil, err
-			}
-		} else {
-			// deploy from the genesis accounts set
-			pickNumAccounts := min(int(deploy.NumValidators), len(s.genesisAccounts))
-			if pickNumAccounts == 0 {
-				return nil, fmt.Errorf("there are no more genesis accounts to use")
-			}
-			accounts, s.genesisAccounts = s.genesisAccounts[:pickNumAccounts], s.genesisAccounts[pickNumAccounts:]
+		tranche, err := s.createValidatorsTranche(int(deploy.NumValidators), deploy.WithDeposit)
+		if err != nil {
+			return nil, err
 		}
 
-		name := fmt.Sprintf("validator-%d-%s", numOfNodes(proto.NodeType_Validator), req.NodeClient.String())
+		name := fmt.Sprintf("validator-%d-%s", numOfNodes(proto.NodeType_Validator), strings.ToLower(req.NodeClient.String()))
 
 		vCfg := &proto.ValidatorConfig{
-			Accounts: accounts,
+			Accounts: tranche.Accounts,
 			Spec:     s.config.Spec.buildConfig(),
 			Beacon:   target,
 		}
