@@ -15,14 +15,16 @@ var (
 )
 
 type Config struct {
-	Name string
-	Spec *Eth2Spec
+	Name        string
+	Spec        *Eth2Spec
+	NumTranches uint64
 }
 
 func DefaultConfig() *Config {
 	return &Config{
-		Name: "e2e-test",
-		Spec: &Eth2Spec{},
+		Name:        "e2e-test",
+		Spec:        &Eth2Spec{},
+		NumTranches: 1,
 	}
 }
 

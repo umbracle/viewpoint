@@ -78,7 +78,7 @@ func (c *Command) handleSignals() int {
 
 func (c *Command) readConfig(args []string) (*server.Config, error) {
 	var name, genesisTime string
-	var genesisValidatorCount uint64
+	var genesisValidatorCount, numTranches uint64
 
 	flags := flag.NewFlagSet("server", flag.ContinueOnError)
 	flags.Usage = func() { c.UI.Error(c.Help()) }
@@ -86,6 +86,8 @@ func (c *Command) readConfig(args []string) (*server.Config, error) {
 	flags.StringVar(&name, "name", "random", "")
 	flags.Uint64Var(&genesisValidatorCount, "genesis-validator-count", 10, "")
 	flags.StringVar(&genesisTime, "genesis-time", "", "")
+	flags.Uint64Var(&numTranches, "num-tranches", 1, "")
+
 	if err := flags.Parse(args); err != nil {
 		return nil, err
 	}

@@ -14,11 +14,11 @@ type NodeDeployCommand struct {
 	nodeType      string
 	numValidators uint64
 
-	validator   bool
-	beaconNode  bool
-	withDeposit bool
+	validator  bool
+	beaconNode bool
 
-	count uint64
+	trancheNum uint64
+	count      uint64
 
 	repo string
 	tag  string
@@ -42,7 +42,7 @@ func (c *NodeDeployCommand) Run(args []string) int {
 	flags.Uint64Var(&c.numValidators, "num-validators", 0, "")
 	flags.BoolVar(&c.validator, "validator", false, "")
 	flags.BoolVar(&c.beaconNode, "beacon-node", false, "")
-	flags.BoolVar(&c.withDeposit, "with-deposit", false, "")
+	flags.Uint64Var(&c.trancheNum, "tranche", 0, "")
 	flags.Uint64Var(&c.count, "count", 1, "")
 	flags.StringVar(&c.repo, "repo", "", "")
 	flags.StringVar(&c.tag, "tag", "", "")
@@ -72,7 +72,7 @@ func (c *NodeDeployCommand) Run(args []string) int {
 		reqJob = &proto.NodeDeployRequest_Validator_{
 			Validator: &proto.NodeDeployRequest_Validator{
 				NumValidators: c.numValidators,
-				WithDeposit:   c.withDeposit,
+				NumTranch:     c.trancheNum,
 			},
 		}
 	} else {

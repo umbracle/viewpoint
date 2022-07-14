@@ -39,14 +39,19 @@ type Server struct {
 	nodes       []spec.Node
 	bootnodeENR string
 
-	numTranches int
+	tranches map[uint64]*Tranche
 
 	// genesis data
-	genesisSSZ      []byte
-	genesisAccounts []*proto.Account
+	genesisSSZ []byte
 }
 
 func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
+	// for simplicity we force that there is a perfect division between
+	// the initial validators and the tranches
+	if config.Spec.GenesisValidatorCount%int(config.NumTranches) != 0 {
+		return nil, fmt.Errorf("genesis validator count not multiple of the tranches, got %d and %d", config.Spec.GenesisValidatorCount, config.NumTranches)
+	}
+
 	docker, err := docker.NewDocker()
 	if err != nil {
 		return nil, err
@@ -68,19 +73,6 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		return nil, err
 	}
 	block, err := provider.Eth().GetBlockByNumber(ethgo.Latest, true)
-	if err != nil {
-		return nil, err
-	}
-
-	accounts := proto.NewAccounts(config.Spec.GenesisValidatorCount)
-
-	genesisInit := config.Spec.MinGenesisTime
-
-	state, err := genesis.GenerateGenesis(block, int64(genesisInit), accounts)
-	if err != nil {
-		return nil, err
-	}
-	genesisSSZ, err := state.MarshalSSZ()
 	if err != nil {
 		return nil, err
 	}
@@ -111,17 +103,36 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 			eth1,
 			bootnode,
 		},
-		genesisAccounts: accounts,
-		fileLogger:      &fileLogger{path: dataPath},
-		bootnodeENR:     bootnodeSpec.Enr,
-		depositHandler:  depositHandler,
-		genesisSSZ:      genesisSSZ,
+		fileLogger:     &fileLogger{path: dataPath},
+		bootnodeENR:    bootnodeSpec.Enr,
+		depositHandler: depositHandler,
+		tranches:       map[uint64]*Tranche{},
 	}
 
+	// create the tranches and initial accounts
+	numAccountsPerTranche := config.Spec.GenesisValidatorCount / int(config.NumTranches)
+
+	initialAccounts := []*proto.Account{}
+	for i := 0; i < int(config.NumTranches); i++ {
+		tranche, err := srv.createTranche(numAccountsPerTranche)
+		if err != nil {
+			return nil, err
+		}
+		initialAccounts = append(initialAccounts, tranche.Accounts...)
+	}
+
+	state, err := genesis.GenerateGenesis(block, int64(config.Spec.MinGenesisTime), initialAccounts)
+	if err != nil {
+		return nil, err
+	}
+	srv.genesisSSZ, err = state.MarshalSSZ()
+	if err != nil {
+		return nil, err
+	}
 	if _, err := srv.writeFile("spec.yaml", config.Spec.buildConfig()); err != nil {
 		return nil, err
 	}
-	if _, err := srv.writeFile("genesis.ssz", genesisSSZ); err != nil {
+	if _, err := srv.writeFile("genesis.ssz", srv.genesisSSZ); err != nil {
 		return nil, err
 	}
 
@@ -185,27 +196,36 @@ func (s *Server) filterLocked(cond func(opts *spec.Spec) bool) []spec.Node {
 }
 
 type Tranche struct {
-	Accounts []*proto.Account
-	Filepath string
+	Accounts  []*proto.Account
+	Filepath  string
+	Validator string
 }
 
-func (s *Server) createValidatorsTranche(numValidators int, withDeposit bool) (*Tranche, error) {
-	var accounts []*proto.Account
-
-	if withDeposit {
-		// send deposits to the genesis contract
-		accounts = proto.NewAccounts(numValidators)
-
-		if err := s.depositHandler.MakeDeposits(accounts); err != nil {
+func (t *Tranche) ToProto() (*proto.TrancheStub, error) {
+	res := &proto.TrancheStub{
+		Name: t.Validator,
+		Path: t.Filepath,
+	}
+	for _, acct := range t.Accounts {
+		stub, err := acct.ToStub()
+		if err != nil {
 			return nil, err
 		}
-	} else {
-		// deploy from the genesis accounts set
-		pickNumAccounts := min(numValidators, len(s.genesisAccounts))
-		if pickNumAccounts == 0 {
-			return nil, fmt.Errorf("there are no more genesis accounts to use")
-		}
-		accounts, s.genesisAccounts = s.genesisAccounts[:pickNumAccounts], s.genesisAccounts[pickNumAccounts:]
+		res.Accounts = append(res.Accounts, stub)
+	}
+	return res, nil
+}
+
+func (t *Tranche) IsConsumed() bool {
+	return t.Validator != ""
+}
+
+// createTranche creates a new tranche object including the deposits
+func (s *Server) createTranche(numValidators int) (*Tranche, error) {
+	accounts := proto.NewAccounts(numValidators)
+
+	if err := s.depositHandler.MakeDeposits(accounts); err != nil {
+		return nil, err
 	}
 
 	// create a tranche file on the datadir
@@ -217,38 +237,56 @@ func (s *Server) createValidatorsTranche(numValidators int, withDeposit bool) (*
 		}
 		privKeys = append(privKeys, hex.EncodeToString(priv[:]))
 	}
-	tranchPath, err := s.writeFile(fmt.Sprintf("tranche_%d.txt", s.numTranches), []byte(strings.Join(privKeys, "\n")))
+
+	numTranches := len(s.tranches)
+	tranchPath, err := s.writeFile(fmt.Sprintf("tranche_%d.txt", numTranches), []byte(strings.Join(privKeys, "\n")))
 	if err != nil {
 		return nil, err
 	}
-	s.numTranches++
 
 	tranche := &Tranche{
 		Accounts: accounts,
 		Filepath: tranchPath,
 	}
+	s.tranches[uint64(numTranches)] = tranche
 	return tranche, nil
 }
 
-func (s *Server) Deposit(ctx context.Context, req *proto.DepositRequest) (*proto.DepositResponse, error) {
+func (s *Server) DepositList(ctx context.Context, req *proto.DepositListRequest) (*proto.DepositListResponse, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	tranche, err := s.createValidatorsTranche(int(req.NumValidators), req.WithDeposit)
+	res := []*proto.TrancheStub{}
+	for index, tranche := range s.tranches {
+		stub, err := tranche.ToProto()
+		if err != nil {
+			return nil, err
+		}
+		stub.Index = index
+		res = append(res, stub)
+	}
+
+	resp := &proto.DepositListResponse{
+		Tranches: res,
+	}
+	return resp, nil
+}
+
+func (s *Server) DepositCreate(ctx context.Context, req *proto.DepositCreateRequest) (*proto.DepositCreateResponse, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	tranche, err := s.createTranche(int(req.NumValidators))
 	if err != nil {
 		return nil, err
 	}
 
-	resp := &proto.DepositResponse{
-		TranchPath: tranche.Filepath,
-		Accounts:   []*proto.AccountStub{},
+	stub, err := tranche.ToProto()
+	if err != nil {
+		return nil, err
 	}
-	for _, acct := range tranche.Accounts {
-		stub, err := acct.ToStub()
-		if err != nil {
-			return nil, err
-		}
-		resp.Accounts = append(resp.Accounts, stub)
+	resp := &proto.DepositCreateResponse{
+		Tranche: stub,
 	}
 	return resp, nil
 }
@@ -321,10 +359,6 @@ func (s *Server) NodeDeploy(ctx context.Context, req *proto.NodeDeployRequest) (
 	} else if typ, ok := req.NodeType.(*proto.NodeDeployRequest_Validator_); ok {
 		deploy := typ.Validator
 
-		if deploy.NumValidators == 0 {
-			return nil, fmt.Errorf("no number of validators provided")
-		}
-
 		// pick a beacon node to connect that is of the same type as the validator
 		beacons := s.filterLocked(func(spec *spec.Spec) bool {
 			return spec.HasLabel(proto.NodeTypeLabel, proto.NodeType_Beacon.String()) &&
@@ -336,9 +370,22 @@ func (s *Server) NodeDeploy(ctx context.Context, req *proto.NodeDeployRequest) (
 
 		target := beacons[0]
 
-		tranche, err := s.createValidatorsTranche(int(deploy.NumValidators), deploy.WithDeposit)
-		if err != nil {
-			return nil, err
+		var tranche *Tranche
+		if deploy.NumValidators == 0 {
+			// a tranch is selected from the list
+			tranche, ok = s.tranches[deploy.NumTranch]
+			if !ok {
+				return nil, fmt.Errorf("tranche number '%d' does not exists", deploy.NumTranch)
+			}
+			if tranche.IsConsumed() {
+				return nil, fmt.Errorf("tranche '%d' has already been used", deploy.NumTranch)
+			}
+		} else {
+			// create a new tranch
+			var err error
+			if tranche, err = s.createTranche(int(deploy.NumValidators)); err != nil {
+				return nil, err
+			}
 		}
 
 		name := fmt.Sprintf("validator-%d-%s", numOfNodes(proto.NodeType_Validator), strings.ToLower(req.NodeClient.String()))
@@ -362,6 +409,9 @@ func (s *Server) NodeDeploy(ctx context.Context, req *proto.NodeDeployRequest) (
 		if err != nil {
 			return nil, err
 		}
+
+		// consume the tranche
+		tranche.Validator = name
 	}
 
 	resp := &proto.NodeDeployResponse{
@@ -380,13 +430,6 @@ var validatorsFactory = map[proto.NodeClient]proto.CreateValidator2{
 	proto.NodeClient_Teku:       components.NewTekuValidator,
 	proto.NodeClient_Prysm:      components.NewPrysmValidator,
 	proto.NodeClient_Lighthouse: components.NewLighthouseValidator,
-}
-
-func min(i, j int) int {
-	if i < j {
-		return i
-	}
-	return j
 }
 
 func (s *Server) NodeList(ctx context.Context, req *proto.NodeListRequest) (*proto.NodeListResponse, error) {
