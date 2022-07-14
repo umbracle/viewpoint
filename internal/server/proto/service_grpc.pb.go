@@ -18,6 +18,8 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type E2EServiceClient interface {
+	DepositCreate(ctx context.Context, in *DepositCreateRequest, opts ...grpc.CallOption) (*DepositCreateResponse, error)
+	DepositList(ctx context.Context, in *DepositListRequest, opts ...grpc.CallOption) (*DepositListResponse, error)
 	NodeDeploy(ctx context.Context, in *NodeDeployRequest, opts ...grpc.CallOption) (*NodeDeployResponse, error)
 	NodeList(ctx context.Context, in *NodeListRequest, opts ...grpc.CallOption) (*NodeListResponse, error)
 	NodeStatus(ctx context.Context, in *NodeStatusRequest, opts ...grpc.CallOption) (*NodeStatusResponse, error)
@@ -29,6 +31,24 @@ type e2EServiceClient struct {
 
 func NewE2EServiceClient(cc grpc.ClientConnInterface) E2EServiceClient {
 	return &e2EServiceClient{cc}
+}
+
+func (c *e2EServiceClient) DepositCreate(ctx context.Context, in *DepositCreateRequest, opts ...grpc.CallOption) (*DepositCreateResponse, error) {
+	out := new(DepositCreateResponse)
+	err := c.cc.Invoke(ctx, "/proto.E2EService/DepositCreate", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *e2EServiceClient) DepositList(ctx context.Context, in *DepositListRequest, opts ...grpc.CallOption) (*DepositListResponse, error) {
+	out := new(DepositListResponse)
+	err := c.cc.Invoke(ctx, "/proto.E2EService/DepositList", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *e2EServiceClient) NodeDeploy(ctx context.Context, in *NodeDeployRequest, opts ...grpc.CallOption) (*NodeDeployResponse, error) {
@@ -62,6 +82,8 @@ func (c *e2EServiceClient) NodeStatus(ctx context.Context, in *NodeStatusRequest
 // All implementations must embed UnimplementedE2EServiceServer
 // for forward compatibility
 type E2EServiceServer interface {
+	DepositCreate(context.Context, *DepositCreateRequest) (*DepositCreateResponse, error)
+	DepositList(context.Context, *DepositListRequest) (*DepositListResponse, error)
 	NodeDeploy(context.Context, *NodeDeployRequest) (*NodeDeployResponse, error)
 	NodeList(context.Context, *NodeListRequest) (*NodeListResponse, error)
 	NodeStatus(context.Context, *NodeStatusRequest) (*NodeStatusResponse, error)
@@ -72,6 +94,12 @@ type E2EServiceServer interface {
 type UnimplementedE2EServiceServer struct {
 }
 
+func (UnimplementedE2EServiceServer) DepositCreate(context.Context, *DepositCreateRequest) (*DepositCreateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DepositCreate not implemented")
+}
+func (UnimplementedE2EServiceServer) DepositList(context.Context, *DepositListRequest) (*DepositListResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DepositList not implemented")
+}
 func (UnimplementedE2EServiceServer) NodeDeploy(context.Context, *NodeDeployRequest) (*NodeDeployResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method NodeDeploy not implemented")
 }
@@ -92,6 +120,42 @@ type UnsafeE2EServiceServer interface {
 
 func RegisterE2EServiceServer(s grpc.ServiceRegistrar, srv E2EServiceServer) {
 	s.RegisterService(&E2EService_ServiceDesc, srv)
+}
+
+func _E2EService_DepositCreate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DepositCreateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(E2EServiceServer).DepositCreate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.E2EService/DepositCreate",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(E2EServiceServer).DepositCreate(ctx, req.(*DepositCreateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _E2EService_DepositList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DepositListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(E2EServiceServer).DepositList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.E2EService/DepositList",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(E2EServiceServer).DepositList(ctx, req.(*DepositListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _E2EService_NodeDeploy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -155,6 +219,14 @@ var E2EService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "proto.E2EService",
 	HandlerType: (*E2EServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "DepositCreate",
+			Handler:    _E2EService_DepositCreate_Handler,
+		},
+		{
+			MethodName: "DepositList",
+			Handler:    _E2EService_DepositList_Handler,
+		},
 		{
 			MethodName: "NodeDeploy",
 			Handler:    _E2EService_NodeDeploy_Handler,

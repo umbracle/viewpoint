@@ -28,12 +28,6 @@ func GenerateGenesis(eth1Block *ethgo.Block, genesisTime int64, initialValidator
 
 	depositRoot, _ := hex.DecodeString("d70a234731285c6804c2a4f56711ddb8c82c99740f207854891028af34e27e5e")
 
-	eth1Data := &Eth1Data{
-		DepositRoot:  depositRoot,
-		DepositCount: 0,
-		BlockHash:    eth1Block.Hash[:],
-	}
-
 	validators := []*Validator{}
 	balances := []uint64{}
 
@@ -86,14 +80,20 @@ func GenerateGenesis(eth1Block *ethgo.Block, genesisTime int64, initialValidator
 			CurrentVersion:  make([]byte, 4),
 		},
 		LatestBlockHeader: &BeaconBlockHeader{
-			BodyRoot:   bodyRoot[:],
-			ParentRoot: make([]byte, 32),
-			StateRoot:  make([]byte, 32),
+			Slot:          0,
+			ProposerIndex: 0,
+			BodyRoot:      bodyRoot[:],
+			ParentRoot:    make([]byte, 32),
+			StateRoot:     make([]byte, 32),
 		},
-		BlockRoots:                emptyRoots,
-		StateRoots:                emptyRoots,
-		HistoricalRoots:           [][]byte{},
-		Eth1Data:                  eth1Data,
+		BlockRoots:      emptyRoots,
+		StateRoots:      emptyRoots,
+		HistoricalRoots: [][]byte{},
+		Eth1Data: &Eth1Data{
+			DepositRoot:  depositRoot,
+			DepositCount: 0,
+			BlockHash:    eth1Block.Hash[:],
+		},
 		Eth1DataVotes:             []*Eth1Data{},
 		Eth1DepositIndex:          0,
 		Validators:                validators,

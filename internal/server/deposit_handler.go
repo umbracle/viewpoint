@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/umbracle/ethgo"
+	"github.com/umbracle/ethgo/abi"
 	"github.com/umbracle/ethgo/contract"
 	"github.com/umbracle/ethgo/jsonrpc"
 	"github.com/umbracle/viewpoint/internal/deposit"
@@ -147,6 +148,14 @@ func (e *depositHandler) MakeDeposits(accounts []*proto.Account) error {
 	return nil
 }
 
+var depositEvent = abi.MustNewEvent(`event DepositEvent(
+	bytes pubkey,
+	bytes withdrawal_credentials,
+	bytes amount,
+	bytes signature,
+	bytes index
+)`)
+
 // MakeDeposit deposits the minimum required value to become a validator
 func (e *depositHandler) MakeDeposit(account *proto.Account) error {
 	depositAmount := deposit.MinGweiAmount
@@ -180,6 +189,10 @@ func (e *depositHandler) MakeDeposit(account *proto.Account) error {
 	}
 	if len(receipt.Logs) != 1 {
 		return fmt.Errorf("log not found")
+	}
+
+	if _, err := depositEvent.ParseLog(receipt.Logs[0]); err != nil {
+		return err
 	}
 	return nil
 }
