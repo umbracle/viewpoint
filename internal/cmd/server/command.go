@@ -69,8 +69,6 @@ func (c *Command) handleSignals() int {
 	select {
 	case <-signalCh:
 		return 1
-	case <-time.After(10 * time.Second):
-		return 1
 	case <-gracefulCh:
 		return 0
 	}
@@ -83,9 +81,9 @@ func (c *Command) readConfig(args []string) (*server.Config, error) {
 	flags := flag.NewFlagSet("server", flag.ContinueOnError)
 	flags.Usage = func() { c.UI.Error(c.Help()) }
 
-	flags.StringVar(&name, "name", "random", "")
+	flags.StringVar(&name, "name", "test", "")
 	flags.Uint64Var(&genesisValidatorCount, "genesis-validator-count", 10, "")
-	flags.StringVar(&genesisTime, "genesis-time", "", "")
+	flags.StringVar(&genesisTime, "genesis-time", "1m", "")
 	flags.Uint64Var(&numTranches, "num-tranches", 1, "")
 
 	if err := flags.Parse(args); err != nil {

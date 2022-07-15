@@ -39,16 +39,19 @@ message NodeDeployRequest {
     }
 
     message Beacon {
+        uint64 count = 1;
     }
 
     message Validator {
         uint64 numValidators = 1;
         uint64 numTranch = 2;
+        bool withBeacon = 3;
+        uint64 beaconCount = 4;
     }
 }
 
 message NodeDeployResponse {
-    Node node = 1;
+    repeated Node nodes = 1;
 }
 
 message NodeListRequest {

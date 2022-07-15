@@ -31,8 +31,13 @@ func Commands() map[string]cli.CommandFactory {
 				UI: ui,
 			}, nil
 		},
-		"node deploy": func() (cli.Command, error) {
-			return &NodeDeployCommand{
+		"node deploy validator": func() (cli.Command, error) {
+			return &NodeDeployValidatorCommand{
+				Meta: meta,
+			}, nil
+		},
+		"node deploy beacon": func() (cli.Command, error) {
+			return &NodeDeployBeaconCommand{
 				Meta: meta,
 			}, nil
 		},
