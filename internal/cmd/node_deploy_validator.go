@@ -8,42 +8,40 @@ import (
 )
 
 // E2ENodeCommand is the command to deploy an e2e network
-type NodeDeployCommand struct {
+type NodeDeployValidatorCommand struct {
 	*Meta
 
 	nodeType      string
 	numValidators uint64
 
-	validator  bool
-	beaconNode bool
+	withBeacon bool
 
-	trancheNum uint64
-	count      uint64
+	trancheNum  uint64
+	beaconCount uint64
 
 	repo string
 	tag  string
 }
 
 // Help implements the cli.Command interface
-func (c *NodeDeployCommand) Help() string {
+func (c *NodeDeployValidatorCommand) Help() string {
 	return ""
 }
 
 // Synopsis implements the cli.Command interface
-func (c *NodeDeployCommand) Synopsis() string {
+func (c *NodeDeployValidatorCommand) Synopsis() string {
 	return ""
 }
 
 // Run implements the cli.Command interface
-func (c *NodeDeployCommand) Run(args []string) int {
+func (c *NodeDeployValidatorCommand) Run(args []string) int {
 	flags := c.FlagSet("node deploy")
 
-	flags.StringVar(&c.nodeType, "node-type", "", "")
+	flags.StringVar(&c.nodeType, "type", "", "")
 	flags.Uint64Var(&c.numValidators, "num-validators", 0, "")
-	flags.BoolVar(&c.validator, "validator", false, "")
-	flags.BoolVar(&c.beaconNode, "beacon-node", false, "")
 	flags.Uint64Var(&c.trancheNum, "tranche", 0, "")
-	flags.Uint64Var(&c.count, "count", 1, "")
+	flags.BoolVar(&c.withBeacon, "beacon", false, "")
+	flags.Uint64Var(&c.beaconCount, "beacon-count", 1, "")
 	flags.StringVar(&c.repo, "repo", "", "")
 	flags.StringVar(&c.tag, "tag", "", "")
 
@@ -63,20 +61,18 @@ func (c *NodeDeployCommand) Run(args []string) int {
 		return 1
 	}
 
-	var reqJob proto.IsNodeDeployRequest_NodeType
-	if c.beaconNode {
-		reqJob = &proto.NodeDeployRequest_Beacon_{
-			Beacon: &proto.NodeDeployRequest_Beacon{},
-		}
-	} else if c.validator {
-		reqJob = &proto.NodeDeployRequest_Validator_{
-			Validator: &proto.NodeDeployRequest_Validator{
-				NumValidators: c.numValidators,
-				NumTranch:     c.trancheNum,
-			},
-		}
-	} else {
-		c.UI.Output("either --validator or --beacon-node must be set")
+	if c.beaconCount == 0 {
+		c.UI.Error("--count cannot be zero")
+		return 1
+	}
+
+	reqJob := &proto.NodeDeployRequest_Validator_{
+		Validator: &proto.NodeDeployRequest_Validator{
+			NumValidators: c.numValidators,
+			NumTranch:     c.trancheNum,
+			WithBeacon:    c.withBeacon,
+			BeaconCount:   c.beaconCount,
+		},
 	}
 
 	req := &proto.NodeDeployRequest{
@@ -86,12 +82,9 @@ func (c *NodeDeployCommand) Run(args []string) int {
 		NodeType:   reqJob,
 	}
 
-	for i := 0; i < int(c.count); i++ {
-		if _, err := clt.NodeDeploy(context.Background(), req); err != nil {
-			c.UI.Error(err.Error())
-			return 1
-		}
+	if _, err := clt.NodeDeploy(context.Background(), req); err != nil {
+		c.UI.Error(err.Error())
+		return 1
 	}
-
 	return 0
 }

@@ -26,7 +26,7 @@ func (c *DepositCreateCommand) Synopsis() string {
 
 // Run implements the cli.Command interface
 func (c *DepositCreateCommand) Run(args []string) int {
-	flags := c.FlagSet("deposit")
+	flags := c.FlagSet("deposit create")
 
 	flags.Uint64Var(&c.numValidators, "num-validators", 0, "")
 

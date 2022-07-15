@@ -302,7 +302,9 @@ func (s *Server) NodeDeploy(ctx context.Context, req *proto.NodeDeployRequest) (
 		return len(nodes)
 	}
 
-	deployNode := func(name string, spec *spec.Spec) (*proto.Node, error) {
+	createdNodes := []*proto.Node{}
+
+	deployNode := func(name string, spec *spec.Spec) (spec.Node, error) {
 		fLogger, err := s.fileLogger.Create(name)
 		if err != nil {
 			return nil, err
@@ -327,13 +329,13 @@ func (s *Server) NodeDeploy(ctx context.Context, req *proto.NodeDeployRequest) (
 		if err != nil {
 			return nil, err
 		}
-		return stub, nil
+		createdNodes = append(createdNodes, stub)
+		return node, nil
 	}
 
-	var node *proto.Node
-
-	if _, ok := req.NodeType.(*proto.NodeDeployRequest_Beacon_); ok {
+	deployBeacon := func() (spec.Node, error) {
 		name := fmt.Sprintf("beacon-%d-%s", numOfNodes(proto.NodeType_Beacon), strings.ToLower(req.NodeClient.String()))
+		s.logger.Info("deploy beacon node", "name", name)
 
 		bCfg := &proto.BeaconConfig{
 			Spec:       s.config.Spec.buildConfig(),
@@ -351,28 +353,30 @@ func (s *Server) NodeDeploy(ctx context.Context, req *proto.NodeDeployRequest) (
 		if err != nil {
 			return nil, err
 		}
-		node, err = deployNode(name, spec)
+		node, err := deployNode(name, spec)
 		if err != nil {
 			return nil, err
 		}
+		return node, nil
+	}
 
-	} else if typ, ok := req.NodeType.(*proto.NodeDeployRequest_Validator_); ok {
-		deploy := typ.Validator
-
-		// pick a beacon node to connect that is of the same type as the validator
-		beacons := s.filterLocked(func(spec *spec.Spec) bool {
-			return spec.HasLabel(proto.NodeTypeLabel, proto.NodeType_Beacon.String()) &&
-				spec.HasLabel(proto.NodeClientLabel, req.NodeClient.String())
-		})
-		if len(beacons) == 0 {
-			return nil, fmt.Errorf("no beacon node found for client %s", req.NodeClient.String())
+	deployValidator := func(deploy *proto.NodeDeployRequest_Validator, target spec.Node) (spec.Node, error) {
+		if target == nil {
+			// pick a beacon node to connect that is of the same type as the validator
+			beacons := s.filterLocked(func(spec *spec.Spec) bool {
+				return spec.HasLabel(proto.NodeTypeLabel, proto.NodeType_Beacon.String()) &&
+					spec.HasLabel(proto.NodeClientLabel, req.NodeClient.String())
+			})
+			if len(beacons) == 0 {
+				return nil, fmt.Errorf("no beacon node found for client %s", req.NodeClient.String())
+			}
+			target = beacons[0]
 		}
-
-		target := beacons[0]
 
 		var tranche *Tranche
 		if deploy.NumValidators == 0 {
 			// a tranch is selected from the list
+			var ok bool
 			tranche, ok = s.tranches[deploy.NumTranch]
 			if !ok {
 				return nil, fmt.Errorf("tranche number '%d' does not exists", deploy.NumTranch)
@@ -389,6 +393,7 @@ func (s *Server) NodeDeploy(ctx context.Context, req *proto.NodeDeployRequest) (
 		}
 
 		name := fmt.Sprintf("validator-%d-%s", numOfNodes(proto.NodeType_Validator), strings.ToLower(req.NodeClient.String()))
+		s.logger.Info("deploy validator node", "name", name)
 
 		vCfg := &proto.ValidatorConfig{
 			Accounts: tranche.Accounts,
@@ -405,17 +410,55 @@ func (s *Server) NodeDeploy(ctx context.Context, req *proto.NodeDeployRequest) (
 		if err != nil {
 			return nil, err
 		}
-		node, err = deployNode(name, spec)
+		node, err := deployNode(name, spec)
 		if err != nil {
 			return nil, err
 		}
 
 		// consume the tranche
 		tranche.Validator = name
+		return node, nil
+	}
+
+	beaconReq, ok := req.NodeType.(*proto.NodeDeployRequest_Beacon_)
+	if !ok {
+		// we still have to deploy beacon nodes if requested by a validator
+		if valReq := req.NodeType.(*proto.NodeDeployRequest_Validator_); valReq.Validator.WithBeacon {
+			beaconReq = &proto.NodeDeployRequest_Beacon_{
+				Beacon: &proto.NodeDeployRequest_Beacon{
+					Count: valReq.Validator.BeaconCount,
+				},
+			}
+		}
+	}
+
+	var beacons []spec.Node
+	if beaconReq != nil {
+		// deploy beacon nodes
+		for i := 0; i < int(beaconReq.Beacon.Count); i++ {
+			beacon, err := deployBeacon()
+			if err != nil {
+				return nil, err
+			}
+			beacons = append(beacons, beacon)
+		}
+	}
+
+	// deploy validator if requested
+	if valReq, ok := req.NodeType.(*proto.NodeDeployRequest_Validator_); ok {
+		// if also deployed a beacon, use one of those as a target
+		var target spec.Node
+		if len(beacons) != 0 {
+			target = beacons[0]
+		}
+		// deploy validator
+		if _, err := deployValidator(valReq.Validator, target); err != nil {
+			return nil, err
+		}
 	}
 
 	resp := &proto.NodeDeployResponse{
-		Node: node,
+		Nodes: createdNodes,
 	}
 	return resp, nil
 }
