@@ -21,7 +21,7 @@ $ viewpoint server --name test [--genesis-time 1m] [--genesis-validator-count 10
 
 The `server` command starts the Viewpoint agent which handles the lifecycle of an Ethereum (post-merge) network. At startup, it generates an initial set of validator accounts (`genesis-validator-count`), splits them in tranches (`num-tranches`) and creates a `genesis.ssz` file. Each validator client will own a single tranche of accounts.
 
-The deployment of the nodes is done using docker containers which are stopped once the `server` process is stopped. The agent creates an `e2e-<name>` folder in the root directory where all the metadata, specs and node logs are stored.
+The deployment of the nodes is done using [Docker](https://www.docker.com/) containers which are stopped once the `server` process is over. The agent creates an `e2e-<name>` folder in the root directory where all the metadata, specs and node logs are stored.
 
 Now, lets deploy a validator client for the network.
 
@@ -33,7 +33,7 @@ The validator will use the accounts in the tranche `0` (the only one created), w
 
 The `node deploy validator` command includes the `--beacon` and `--beacon-count` flags as a convenience method to pre-deploy a set of beacon nodes (with the same consensus client) to which the validator can connect to join the network.
 
-At any point we can deploy another beacon node that will join and sync the network:
+At any point we can deploy another beacon node with:
 
 ```
 $ viewpoint node deploy beacon --type [prysm|lighthouse|teku]
@@ -82,7 +82,7 @@ The `deposit list` command lists all the tranches.
 $ viewpoint deploy beacon
 ```
 
-The `deploy beacon` command deploys multiple beacon node clients as `Docker` containers. The nodes use a bootnode to discover each other.
+The `deploy beacon` command deploys multiple beacon node clients. The nodes use a bootnode to discover each other.
 
 Flags:
 
@@ -97,7 +97,7 @@ Flags:
 $ viewpoint deploy validator
 ```
 
-The `deploy validator` command deploys a validator client as a `Docker` container.
+The `deploy validator` command deploys a validator client.
 
 Flags:
 
