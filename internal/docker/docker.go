@@ -80,6 +80,8 @@ func (d *Docker) Deploy(spec *spec.Spec) (*node, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		fmt.Println(tmpDir)
 		mountMap[mount] = tmpDir
 	}
 
@@ -147,11 +149,16 @@ func (d *Docker) Deploy(spec *spec.Spec) (*node, error) {
 		cmdArgs = append(cmdArgs, cleanCmd)
 	}
 
+	fmt.Println(cmdArgs)
+
 	config := &container.Config{
 		Image:  imageName,
 		Cmd:    strslice.StrSlice(cmdArgs),
 		Labels: spec.Labels,
 		User:   spec.User,
+	}
+	if len(spec.Entrypoint) != 0 {
+		config.Entrypoint = strslice.StrSlice(spec.Entrypoint)
 	}
 	hostConfig := &container.HostConfig{
 		Binds:       []string{},
