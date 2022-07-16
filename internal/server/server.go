@@ -114,7 +114,7 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 
 	initialAccounts := []*proto.Account{}
 	for i := 0; i < int(config.NumTranches); i++ {
-		tranche, err := srv.createTranche(numAccountsPerTranche)
+		tranche, err := srv.createTranche(numAccountsPerTranche, false)
 		if err != nil {
 			return nil, err
 		}
@@ -221,11 +221,13 @@ func (t *Tranche) IsConsumed() bool {
 }
 
 // createTranche creates a new tranche object including the deposits
-func (s *Server) createTranche(numValidators int) (*Tranche, error) {
+func (s *Server) createTranche(numValidators int, deposit bool) (*Tranche, error) {
 	accounts := proto.NewAccounts(numValidators)
 
-	if err := s.depositHandler.MakeDeposits(accounts); err != nil {
-		return nil, err
+	if deposit {
+		if err := s.depositHandler.MakeDeposits(accounts); err != nil {
+			return nil, err
+		}
 	}
 
 	// create a tranche file on the datadir
@@ -249,6 +251,8 @@ func (s *Server) createTranche(numValidators int) (*Tranche, error) {
 		Filepath: tranchPath,
 	}
 	s.tranches[uint64(numTranches)] = tranche
+
+	s.logger.Info("tranche created", "index", uint64(numTranches), "num-accounts", len(accounts), "path", tranchPath)
 	return tranche, nil
 }
 
@@ -276,7 +280,7 @@ func (s *Server) DepositCreate(ctx context.Context, req *proto.DepositCreateRequ
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	tranche, err := s.createTranche(int(req.NumValidators))
+	tranche, err := s.createTranche(int(req.NumValidators), true)
 	if err != nil {
 		return nil, err
 	}
@@ -385,9 +389,9 @@ func (s *Server) NodeDeploy(ctx context.Context, req *proto.NodeDeployRequest) (
 				return nil, fmt.Errorf("tranche '%d' has already been used", deploy.NumTranch)
 			}
 		} else {
-			// create a new tranch
+			// create a new tranch (with deposit)
 			var err error
-			if tranche, err = s.createTranche(int(deploy.NumValidators)); err != nil {
+			if tranche, err = s.createTranche(int(deploy.NumValidators), true); err != nil {
 				return nil, err
 			}
 		}
