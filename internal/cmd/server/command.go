@@ -93,6 +93,7 @@ func (c *Command) readConfig(args []string) (*server.Config, error) {
 	config := server.DefaultConfig()
 	config.Name = name
 	config.Spec.GenesisValidatorCount = int(genesisValidatorCount)
+	config.NumTranches = numTranches
 
 	config.Spec.MinGenesisTime = int(time.Now().Unix())
 	if genesisTime != "" {
