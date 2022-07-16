@@ -323,7 +323,7 @@ func (n *node) retryFn(timeout time.Duration, handler func() error) error {
 
 	for {
 		select {
-		case <-time.After(5 * time.Second):
+		case <-time.After(100 * time.Millisecond):
 			if err := handler(); err == nil {
 				return nil
 			}
