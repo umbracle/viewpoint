@@ -15,22 +15,24 @@ var (
 )
 
 type Config struct {
-	Name        string
-	Spec        *Eth2Spec
-	NumTranches uint64
+	Name                 string
+	Spec                 *Eth2Spec
+	NumTranches          uint64
+	NumGenesisValidators uint64
 }
 
 func DefaultConfig() *Config {
 	return &Config{
-		Name:        "e2e-test",
-		Spec:        &Eth2Spec{},
-		NumTranches: 1,
+		Name:                 "e2e-test",
+		Spec:                 DefaultEth2Spec(),
+		NumTranches:          1,
+		NumGenesisValidators: 1,
 	}
 }
 
 // Eth2Spec is the config of the Eth2.0 node
 type Eth2Spec struct {
-	GenesisValidatorCount     int
+	MinGenesisValidatorCount  int
 	GenesisDelay              int
 	MinGenesisTime            int
 	EthFollowDistance         int
@@ -40,12 +42,22 @@ type Eth2Spec struct {
 	SlotsPerEpoch             int
 	SecondsPerSlot            int
 	DepositContract           string
-	Forks                     Forks
+	Altair                    *int
+	Bellatrix                 *int
 }
 
-type Forks struct {
-	Altair    *int
-	Bellatrix *int
+func DefaultEth2Spec() *Eth2Spec {
+	return &Eth2Spec{
+		MinGenesisValidatorCount:  1,
+		GenesisDelay:              10,
+		MinGenesisTime:            int(time.Now().Add(10 * time.Second).Unix()),
+		EthFollowDistance:         1,
+		SecondsPerEth1Block:       1,
+		EpochsPerEth1VotingPeriod: 64,
+		ShardCommitteePeriod:      4,
+		SlotsPerEpoch:             12,
+		SecondsPerSlot:            3,
+	}
 }
 
 func (e *Eth2Spec) MarshalText() ([]byte, error) {
@@ -53,35 +65,6 @@ func (e *Eth2Spec) MarshalText() ([]byte, error) {
 }
 
 func (e *Eth2Spec) buildConfig() []byte {
-	// set up default config values
-	if e.GenesisValidatorCount == 0 {
-		e.GenesisValidatorCount = 1
-	}
-	if e.GenesisDelay == 0 {
-		e.GenesisDelay = 10 // second
-	}
-	if e.MinGenesisTime == 0 {
-		e.MinGenesisTime = int(time.Now().Unix())
-	}
-	if e.EthFollowDistance == 0 {
-		e.EthFollowDistance = 1 // blocks
-	}
-	if e.SecondsPerEth1Block == 0 {
-		e.SecondsPerEth1Block = 1 // second
-	}
-	if e.EpochsPerEth1VotingPeriod == 0 {
-		e.EpochsPerEth1VotingPeriod = 64
-	}
-	if e.ShardCommitteePeriod == 0 {
-		e.ShardCommitteePeriod = 4
-	}
-	if e.SlotsPerEpoch == 0 {
-		e.SlotsPerEpoch = 12 // default 32 slots
-	}
-	if e.SecondsPerSlot == 0 {
-		e.SecondsPerSlot = 3 // default 12 seconds
-	}
-
 	funcMap := template.FuncMap{
 		"marshal": func(obj interface{}) string {
 			enc, ok := obj.(encoding.TextMarshaler)

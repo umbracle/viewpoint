@@ -35,7 +35,7 @@ type Server struct {
 	docker *docker.Docker
 
 	lock        sync.Mutex
-	fileLogger  *fileLogger
+	logDir      *logDir
 	nodes       []spec.Node
 	bootnodeENR string
 
@@ -48,8 +48,8 @@ type Server struct {
 func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	// for simplicity we force that there is a perfect division between
 	// the initial validators and the tranches
-	if config.Spec.GenesisValidatorCount%int(config.NumTranches) != 0 {
-		return nil, fmt.Errorf("genesis validator count not multiple of the tranches, got %d and %d", config.Spec.GenesisValidatorCount, config.NumTranches)
+	if config.NumGenesisValidators%config.NumTranches != 0 {
+		return nil, fmt.Errorf("genesis validator count not multiple of the tranches, got %d and %d", config.NumGenesisValidators, config.NumTranches)
 	}
 
 	docker, err := docker.NewDocker()
@@ -57,120 +57,129 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		return nil, err
 	}
 
-	eth1, err := docker.Deploy(components.NewEth1Server())
+	logDir, err := newLogDir("e2e-" + config.Name)
 	if err != nil {
 		return nil, err
 	}
-	bootnodeSpec := components.NewBootnode()
-	bootnode, err := docker.Deploy(bootnodeSpec.Spec)
-	if err != nil {
-		return nil, err
-	}
-
-	// get latest block
-	provider, err := jsonrpc.NewClient(eth1.GetAddr(proto.NodePortEth1Http))
-	if err != nil {
-		return nil, err
-	}
-	block, err := provider.Eth().GetBlockByNumber(ethgo.Latest, true)
-	if err != nil {
-		return nil, err
-	}
-
-	depositHandler, err := newDepositHandler(eth1.GetAddr(proto.NodePortEth1Http))
-	if err != nil {
-		return nil, err
-	}
-
-	dataPath := "e2e-" + config.Name
-
-	// create a folder to store data
-	if err := os.Mkdir(dataPath, 0755); err != nil {
-		return nil, err
-	}
-
-	logger.Info("eth1 server deployed", "addr", eth1.GetAddr(proto.NodePortEth1Http))
-	logger.Info("deposit contract deployed", "addr", depositHandler.deposit.String())
-
-	config.Spec.DepositContract = depositHandler.deposit.String()
 
 	srv := &Server{
-		config:       config,
-		logger:       logger,
-		eth1HttpAddr: eth1.GetAddr(proto.NodePortEth1Http),
-		docker:       docker,
-		nodes: []spec.Node{
-			eth1,
-			bootnode,
-		},
-		fileLogger:     &fileLogger{path: dataPath},
-		bootnodeENR:    bootnodeSpec.Enr,
-		depositHandler: depositHandler,
-		tranches:       map[uint64]*Tranche{},
+		config:   config,
+		logger:   logger,
+		docker:   docker,
+		nodes:    []spec.Node{},
+		logDir:   logDir,
+		tranches: map[uint64]*Tranche{},
 	}
 
-	// create the tranches and initial accounts
-	numAccountsPerTranche := config.Spec.GenesisValidatorCount / int(config.NumTranches)
-
-	initialAccounts := []*proto.Account{}
-	for i := 0; i < int(config.NumTranches); i++ {
-		tranche, err := srv.createTranche(numAccountsPerTranche, false)
-		if err != nil {
-			return nil, err
-		}
-		initialAccounts = append(initialAccounts, tranche.Accounts...)
+	// deploy bootnode
+	bootnode := components.NewBootnode()
+	if _, err := srv.deployNode(bootnode.Spec.WithName("bootnode")); err != nil {
+		return nil, err
 	}
+	srv.bootnodeENR = bootnode.Enr
 
-	state, err := genesis.GenerateGenesis(block, int64(config.Spec.MinGenesisTime), initialAccounts)
+	// deploy eth1 node
+	eth1, err := srv.deployNode(components.NewEth1Server().WithName("eth1"))
 	if err != nil {
 		return nil, err
 	}
-	srv.genesisSSZ, err = state.MarshalSSZ()
-	if err != nil {
+	srv.eth1HttpAddr = eth1.GetAddr(proto.NodePortEth1Http)
+	logger.Info("eth1 server deployed", "addr", srv.eth1HttpAddr)
+
+	// deploy depositHandler
+	if srv.depositHandler, err = newDepositHandler(srv.eth1HttpAddr); err != nil {
 		return nil, err
 	}
-	if _, err := srv.writeFile("spec.yaml", config.Spec.buildConfig()); err != nil {
-		return nil, err
-	}
-	if _, err := srv.writeFile("genesis.ssz", srv.genesisSSZ); err != nil {
-		return nil, err
+	logger.Info("deposit contract deployed", "addr", srv.depositHandler.deposit.String())
+	config.Spec.DepositContract = srv.depositHandler.deposit.String()
+
+	// setup the genesis.ssz file
+	if err := srv.setupGenesis(); err != nil {
+		return nil, fmt.Errorf("failed to create genesis.szz file: %v", err)
 	}
 
-	grpcServer := grpc.NewServer()
-	proto.RegisterE2EServiceServer(grpcServer, srv)
-
-	grpcAddr := "localhost:5555"
-	lis, err := net.Listen("tcp", grpcAddr)
-	if err != nil {
-		return nil, err
+	// start the grpc server
+	if err := srv.setupGrpcServer(); err != nil {
+		return nil, fmt.Errorf("failed to start grpc server: %v", err)
 	}
-
-	go func() {
-		if err := grpcServer.Serve(lis); err != nil {
-			logger.Error("failed to serve grpc server", "err", err)
-		}
-	}()
-	logger.Info("GRPC Server started", "addr", grpcAddr)
 
 	return srv, nil
 }
 
-func (s *Server) writeFile(path string, content []byte) (string, error) {
-	pwdPath, err := os.Getwd()
+func (s *Server) setupGenesis() error {
+	// create the tranches and initial accounts
+	numAccountsPerTranche := s.config.NumGenesisValidators / s.config.NumTranches
+
+	initialAccounts := []*proto.Account{}
+	for i := 0; i < int(s.config.NumTranches); i++ {
+		tranche, err := s.createTranche(int(numAccountsPerTranche), false)
+		if err != nil {
+			return err
+		}
+		initialAccounts = append(initialAccounts, tranche.Accounts...)
+	}
+
+	// get the latest block from the eth1 chain to create the genesis
+	provider, err := jsonrpc.NewClient(s.eth1HttpAddr)
 	if err != nil {
-		return "", err
+		return err
+	}
+	block, err := provider.Eth().GetBlockByNumber(ethgo.Latest, true)
+	if err != nil {
+		return err
 	}
 
-	fullPath := filepath.Join(pwdPath, "e2e-"+s.config.Name, path)
+	state, err := genesis.GenerateGenesis(block, int64(s.config.Spec.MinGenesisTime), initialAccounts)
+	if err != nil {
+		return err
+	}
+	s.genesisSSZ, err = state.MarshalSSZ()
+	if err != nil {
+		return err
+	}
+	if _, err := s.logDir.writeFile("spec.yaml", s.config.Spec.buildConfig()); err != nil {
+		return err
+	}
+	if _, err := s.logDir.writeFile("genesis.ssz", s.genesisSSZ); err != nil {
+		return err
+	}
+	return nil
+}
 
-	parentDir := filepath.Dir(fullPath)
-	if err := os.MkdirAll(parentDir, 0700); err != nil {
-		return "", err
+func (s *Server) setupGrpcServer() error {
+	grpcServer := grpc.NewServer()
+	proto.RegisterE2EServiceServer(grpcServer, s)
+
+	grpcAddr := "localhost:5555"
+	lis, err := net.Listen("tcp", grpcAddr)
+	if err != nil {
+		return err
 	}
-	if err := ioutil.WriteFile(fullPath, []byte(content), 0644); err != nil {
-		return "", err
+
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			s.logger.Error("failed to serve grpc server", "err", err)
+		}
+	}()
+	s.logger.Info("GRPC Server started", "addr", grpcAddr)
+	return nil
+}
+
+func (s *Server) deployNode(spec *spec.Spec) (spec.Node, error) {
+	fLogger, err := s.logDir.CreateLogFile(spec.Name)
+	if err != nil {
+		return nil, err
 	}
-	return fullPath, nil
+	spec.WithOutput(fLogger).
+		WithLabel("viewpoint", "true").
+		WithLabel("env", s.config.Name)
+
+	node, err := s.docker.Deploy(spec)
+	if err != nil {
+		return nil, err
+	}
+	s.nodes = append(s.nodes, node)
+	return node, nil
 }
 
 func (s *Server) Stop() {
@@ -180,7 +189,7 @@ func (s *Server) Stop() {
 			s.logger.Error("failed to stop node", "id", "x", "err", err)
 		}
 	}
-	if err := s.fileLogger.Close(); err != nil {
+	if err := s.logDir.Close(); err != nil {
 		s.logger.Error("failed to close file logger", "err", err.Error())
 	}
 }
@@ -241,7 +250,7 @@ func (s *Server) createTranche(numValidators int, deposit bool) (*Tranche, error
 	}
 
 	numTranches := len(s.tranches)
-	tranchPath, err := s.writeFile(fmt.Sprintf("tranche_%d.txt", numTranches), []byte(strings.Join(privKeys, "\n")))
+	tranchPath, err := s.logDir.writeFile(fmt.Sprintf("tranche_%d.txt", numTranches), []byte(strings.Join(privKeys, "\n")))
 	if err != nil {
 		return nil, err
 	}
@@ -309,13 +318,7 @@ func (s *Server) NodeDeploy(ctx context.Context, req *proto.NodeDeployRequest) (
 	createdNodes := []*proto.Node{}
 
 	deployNode := func(name string, spec *spec.Spec) (spec.Node, error) {
-		fLogger, err := s.fileLogger.Create(name)
-		if err != nil {
-			return nil, err
-		}
-		spec.WithName(name).
-			WithOutput(fLogger)
-
+		spec.WithName(name)
 		if req.Repo != "" {
 			spec = spec.WithContainer(req.Repo)
 		}
@@ -323,12 +326,10 @@ func (s *Server) NodeDeploy(ctx context.Context, req *proto.NodeDeployRequest) (
 			spec = spec.WithTag(req.Tag)
 		}
 
-		node, err := s.docker.Deploy(spec)
+		node, err := s.deployNode(spec)
 		if err != nil {
 			return nil, err
 		}
-		s.nodes = append(s.nodes, node)
-
 		stub, err := specNodeToNode(node)
 		if err != nil {
 			return nil, err
@@ -542,30 +543,61 @@ func specNodeToNode(n spec.Node) (*proto.Node, error) {
 	return resp, nil
 }
 
-type fileLogger struct {
+type logDir struct {
 	path string
 
-	lock  sync.Mutex
-	files []*os.File
+	lock     sync.Mutex
+	logFiles []*os.File
 }
 
-func (f *fileLogger) Create(name string) (io.Writer, error) {
-	f.lock.Lock()
-	defer f.lock.Unlock()
-
-	file, err := os.OpenFile(filepath.Join(f.path, name+".log"), os.O_RDWR|os.O_APPEND|os.O_CREATE, 0660)
+func newLogDir(path string) (*logDir, error) {
+	pwdPath, err := os.Getwd()
 	if err != nil {
 		return nil, err
 	}
-	if len(f.files) == 0 {
-		f.files = []*os.File{}
+
+	path = filepath.Join(pwdPath, path)
+	if err := os.Mkdir(path, 0755); err != nil {
+		// it fails if path already exists
+		return nil, err
 	}
-	f.files = append(f.files, file)
+
+	logDir := &logDir{
+		path: path,
+	}
+	return logDir, nil
+}
+
+func (l *logDir) writeFile(path string, content []byte) (string, error) {
+	fullPath := filepath.Join(l.path, path)
+
+	parentDir := filepath.Dir(fullPath)
+	if err := os.MkdirAll(parentDir, 0700); err != nil {
+		return "", err
+	}
+	if err := ioutil.WriteFile(fullPath, []byte(content), 0644); err != nil {
+		return "", err
+	}
+	return fullPath, nil
+}
+
+func (l *logDir) CreateLogFile(name string) (io.Writer, error) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+
+	file, err := os.OpenFile(filepath.Join(l.path, name+".log"), os.O_RDWR|os.O_APPEND|os.O_CREATE, 0660)
+	if err != nil {
+		return nil, err
+	}
+	if len(l.logFiles) == 0 {
+		l.logFiles = []*os.File{}
+	}
+	l.logFiles = append(l.logFiles, file)
 	return file, nil
 }
 
-func (f *fileLogger) Close() error {
-	for _, file := range f.files {
+func (l *logDir) Close() error {
+	for _, file := range l.logFiles {
 		// TODO, improve
 		if err := file.Close(); err != nil {
 			return err
