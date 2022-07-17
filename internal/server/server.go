@@ -103,6 +103,11 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		return nil, fmt.Errorf("failed to start grpc server: %v", err)
 	}
 
+	// log the enabled forks
+	if srv.config.Spec.Altair != nil {
+		logger.Info("altair fork enabled", "epoch", *srv.config.Spec.Altair)
+	}
+
 	return srv, nil
 }
 
