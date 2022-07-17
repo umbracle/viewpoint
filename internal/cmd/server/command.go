@@ -77,6 +77,7 @@ func (c *Command) handleSignals() int {
 func (c *Command) readConfig(args []string) (*server.Config, error) {
 	var name, genesisTime string
 	var minGenesisValidatorCount, numGenesisValidators, numTranches uint64
+	var altair int
 
 	flags := flag.NewFlagSet("server", flag.ContinueOnError)
 	flags.Usage = func() { c.UI.Error(c.Help()) }
@@ -86,6 +87,7 @@ func (c *Command) readConfig(args []string) (*server.Config, error) {
 	flags.Uint64Var(&numGenesisValidators, "num-genesis-validators", 10, "")
 	flags.StringVar(&genesisTime, "genesis-time", "1m", "")
 	flags.Uint64Var(&numTranches, "num-tranches", 1, "")
+	flags.IntVar(&altair, "altair", -1, "")
 
 	if err := flags.Parse(args); err != nil {
 		return nil, err
@@ -93,8 +95,12 @@ func (c *Command) readConfig(args []string) (*server.Config, error) {
 
 	config := server.DefaultConfig()
 	config.Name = name
+	config.NumGenesisValidators = numGenesisValidators
 	config.Spec.MinGenesisValidatorCount = int(minGenesisValidatorCount)
 	config.NumTranches = numTranches
+	if altair > 0 {
+		config.Spec.Altair = &altair
+	}
 
 	config.Spec.MinGenesisTime = int(time.Now().Unix())
 	if genesisTime != "" {
