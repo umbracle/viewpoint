@@ -56,6 +56,7 @@ Flags:
 - `min-genesis-validator-count` (`10`): Number of required active validators to start the chain at genesis.
 - `genesis-time` (`1m`): Amount of time from now when the genesis starts.
 - `num-tranches` (`1`): Number of tranches. It has to be an exact multiple of `genesis-validator-count`.
+- `altair` (`null`): Enable the `Altair` hard fork at a given epoch. Disabled by default.
 
 ### Deposit create
 

@@ -1,4 +1,3 @@
-
 # 0.1.1 (Unreleased)
 
 - Add `deposit` command to create and deposit new validator accounts [[GH-16](https://github.com/umbracle/eth2-validator/issues/16)]
