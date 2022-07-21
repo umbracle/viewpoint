@@ -1,11 +1,22 @@
 package components
 
 import (
+	"bytes"
+	_ "embed"
+	"encoding/hex"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
+	"text/template"
 
+	"github.com/umbracle/ethgo"
 	specX "github.com/umbracle/viewpoint/internal/spec"
+)
+
+var (
+	//go:embed fixtures/genesis.json.tmpl
+	genesisTmpl string
 )
 
 var genesis = `{
@@ -68,4 +79,41 @@ func testHTTPEndpoint(endpoint string) error {
 	}
 	defer resp.Body.Close()
 	return nil
+}
+
+type Eth1Genesis struct {
+	MergeForkBlock uint64
+	TDD            uint64
+	Period         uint64
+	Allocs         map[ethgo.Address]string
+	Validators     []ethgo.Address
+	Extra          string
+}
+
+func (e *Eth1Genesis) Build() (string, error) {
+	if len(e.Validators) == 0 {
+		return "", fmt.Errorf("no genesis validators")
+	}
+
+	// build the extra genesis
+	sort.Slice(e.Validators, func(i, j int) bool {
+		return bytes.Compare(e.Validators[i][:], e.Validators[j][:]) < 0
+	})
+	extra := make([]byte, 32)
+	for _, addr := range e.Validators {
+		extra = append(extra, addr.Bytes()...)
+	}
+	extra = append(extra, make([]byte, 65)...)
+	e.Extra = "0x" + hex.EncodeToString(extra)
+
+	tmpl, err := template.New("name").Parse(genesisTmpl)
+	if err != nil {
+		panic(fmt.Sprintf("BUG: Failed to load eth2 config template: %v", err))
+	}
+
+	var tpl bytes.Buffer
+	if err = tmpl.Execute(&tpl, e); err != nil {
+		panic(fmt.Sprintf("BUG: Failed to render template: %v", err))
+	}
+	return tpl.String(), nil
 }
