@@ -34,10 +34,12 @@ type Server struct {
 	// runtime to deploy containers
 	docker *docker.Docker
 
-	lock        sync.Mutex
-	logDir      *logDir
-	nodes       []spec.Node
+	lock   sync.Mutex
+	logDir *logDir
+	nodes  []spec.Node
+
 	bootnodeENR string
+	bootnodeEC  string
 
 	tranches map[uint64]*Tranche
 
@@ -72,26 +74,23 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	}
 
 	// deploy bootnode
-	bootnode := components.NewBootnode()
+	bootnode := components.NewBootnodeV5()
 	if _, err := srv.deployNode(bootnode.Spec.WithName("bootnode")); err != nil {
 		return nil, err
 	}
 	srv.bootnodeENR = bootnode.Enr
 
-	// deploy eth1 node
-	eth1, err := srv.deployNode(components.NewEth1Server().WithName("eth1"))
-	if err != nil {
+	// deploy bootnode v4
+	bootnodeV4 := components.NewBootnodeV4()
+	if _, err := srv.deployNode(bootnodeV4.Spec.WithName("bootnode-v4")); err != nil {
 		return nil, err
 	}
-	srv.eth1HttpAddr = eth1.GetAddr(proto.NodePortEth1Http)
-	logger.Info("eth1 server deployed", "addr", srv.eth1HttpAddr)
+	srv.bootnodeEC = bootnodeV4.Enode
 
-	// deploy depositHandler
-	if srv.depositHandler, err = newDepositHandler(srv.eth1HttpAddr); err != nil {
+	// deploy EC cluster
+	if err := srv.setupEth1Network(); err != nil {
 		return nil, err
 	}
-	logger.Info("deposit contract deployed", "addr", srv.depositHandler.deposit.String())
-	config.Spec.DepositContract = srv.depositHandler.deposit.String()
 
 	// setup the genesis.ssz file
 	if err := srv.setupGenesis(); err != nil {
@@ -109,6 +108,39 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	}
 
 	return srv, nil
+}
+
+func (s *Server) setupEth1Network() error {
+	genesis, key, err := components.NewDevGenesis()
+	if err != nil {
+		return err
+	}
+
+	genesisRaw, err := genesis.Build()
+	if err != nil {
+		return err
+	}
+
+	config := &proto.ExecutionConfig{
+		Bootnode: s.bootnodeEC,
+		Genesis:  genesisRaw,
+		Key:      key,
+	}
+	eth1, err := s.deployNode(components.NewEth1Server(config).WithName("eth1"))
+	if err != nil {
+		return err
+	}
+	s.eth1HttpAddr = eth1.GetAddr(proto.NodePortEth1Http)
+	s.logger.Info("eth1 server deployed", "addr", s.eth1HttpAddr)
+
+	// deploy depositHandler
+	if s.depositHandler, err = newDepositHandler(s.eth1HttpAddr, key); err != nil {
+		return err
+	}
+	s.logger.Info("deposit contract deployed", "addr", s.depositHandler.deposit.String())
+	s.config.Spec.DepositContract = s.depositHandler.deposit.String()
+
+	return nil
 }
 
 func (s *Server) setupGenesis() error {

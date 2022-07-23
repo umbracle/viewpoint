@@ -3,12 +3,14 @@ package server
 import (
 	"encoding/binary"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/umbracle/ethgo"
 	"github.com/umbracle/ethgo/abi"
 	"github.com/umbracle/ethgo/contract"
 	"github.com/umbracle/ethgo/jsonrpc"
+	"github.com/umbracle/ethgo/wallet"
 	"github.com/umbracle/viewpoint/internal/deposit"
 	"github.com/umbracle/viewpoint/internal/server/proto"
 )
@@ -17,15 +19,19 @@ import (
 type depositHandler struct {
 	deposit ethgo.Address
 	client  *jsonrpc.Client
+	key     *wallet.Key
+	nonce   int64
 }
 
-func newDepositHandler(eth1Addr string) (*depositHandler, error) {
+func newDepositHandler(eth1Addr string, key *wallet.Key) (*depositHandler, error) {
 	provider, err := jsonrpc.NewClient(eth1Addr)
 	if err != nil {
 		return nil, err
 	}
 	handler := &depositHandler{
 		client: provider,
+		key:    key,
+		nonce:  -1,
 	}
 	if err := handler.deployDeposit(); err != nil {
 		return nil, err
@@ -39,22 +45,48 @@ const (
 )
 
 func (e *depositHandler) fund(addr ethgo.Address) error {
-	txn := &ethgo.Transaction{
-		From:     e.Owner(),
-		To:       &addr,
-		GasPrice: defaultGasPrice,
-		Gas:      defaultGasLimit,
+	_, err := e.sendTransaction(&ethgo.Transaction{
+		To: &addr,
 		// fund the account with enoung balance to validate and send the transaction
 		Value: ethgo.Ether(deposit.MinGweiAmount + 1),
+	})
+	return err
+}
+
+func (e *depositHandler) getNextNonce() uint64 {
+	return uint64(atomic.AddInt64(&e.nonce, 1))
+}
+
+func (e *depositHandler) sendTransaction(txn *ethgo.Transaction) (*ethgo.Receipt, error) {
+	if txn.GasPrice == 0 {
+		txn.GasPrice = defaultGasPrice
 	}
-	hash, err := e.client.Eth().SendTransaction(txn)
+	if txn.Gas == 0 {
+		txn.Gas = defaultGasLimit
+	}
+	if txn.Nonce == 0 {
+		txn.Nonce = e.getNextNonce()
+	}
+
+	signer := wallet.NewEIP155Signer(1337)
+	signedTxn, err := signer.SignTx(txn, e.key)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if _, err := e.waitForReceipt(hash); err != nil {
-		return err
+
+	txnRaw, err := signedTxn.MarshalRLPTo(nil)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	hash, err := e.client.Eth().SendRawTransaction(txnRaw)
+	if err != nil {
+		return nil, err
+	}
+	receipt, err := e.waitForReceipt(hash)
+	if err != nil {
+		return nil, err
+	}
+	return receipt, nil
 }
 
 func (e *depositHandler) waitForReceipt(hash ethgo.Hash) (*ethgo.Receipt, error) {
@@ -83,30 +115,11 @@ func (e *depositHandler) Provider() *jsonrpc.Client {
 	return e.client
 }
 
-// Owner returns the account with balance on go-ethereum
-func (e *depositHandler) Owner() ethgo.Address {
-	owner, _ := e.Provider().Eth().Accounts()
-	return owner[0]
-}
-
 // DeployDeposit deploys the eth2.0 deposit contract
 func (e *depositHandler) deployDeposit() error {
-	provider := e.Provider()
-
-	owner, err := provider.Eth().Accounts()
-	if err != nil {
-		return err
-	}
-
-	deployTxn := &ethgo.Transaction{
+	receipt, err := e.sendTransaction(&ethgo.Transaction{
 		Input: deposit.DepositBin(),
-		From:  owner[0],
-	}
-	hash, err := provider.Eth().SendTransaction(deployTxn)
-	if err != nil {
-		return err
-	}
-	receipt, err := e.waitForReceipt(hash)
+	})
 	if err != nil {
 		return err
 	}

@@ -3,8 +3,9 @@ package components
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
-	specX "github.com/umbracle/viewpoint/internal/spec"
+	"github.com/umbracle/viewpoint/internal/spec"
 )
 
 var (
@@ -12,13 +13,13 @@ var (
 )
 
 type Bootnode struct {
-	*specX.Spec
+	*spec.Spec
 
 	Enr string
 }
 
-func NewBootnode() *Bootnode {
-	decodeEnr := func(node specX.Node) (string, error) {
+func NewBootnodeV5() *Bootnode {
+	decodeEnr := func(node spec.Node) (string, error) {
 		logs, err := node.GetLogs()
 		if err != nil {
 			return "", err
@@ -35,16 +36,16 @@ func NewBootnode() *Bootnode {
 	cmd := []string{
 		"--debug",
 		"--external-ip", "127.0.0.1",
-		"--discv5-port", "3000",
+		"--discv5-port", `{{ Port "eth.bootnode" }}`,
 	}
 
 	b := &Bootnode{}
 
-	spec := &specX.Spec{}
-	spec.WithName("bootnode").
+	ss := &spec.Spec{}
+	ss.WithName("v5-bootnode").
 		WithCmd(cmd).
 		WithContainer("gcr.io/prysmaticlabs/prysm/bootnode").
-		WithRetry(func(n specX.Node) error {
+		WithRetry(func(n spec.Node) error {
 			enr, err := decodeEnr(n)
 			if err != nil {
 				return err
@@ -53,6 +54,50 @@ func NewBootnode() *Bootnode {
 			return nil
 		})
 
-	b.Spec = spec
+	b.Spec = ss
+	return b
+}
+
+type BootnodeV4 struct {
+	*spec.Spec
+
+	Enode string
+}
+
+func NewBootnodeV4() *BootnodeV4 {
+	cmd := []string{
+		// init with a custom genesis
+		"bootnode",
+		"--genkey", "boot.key",
+		"&&",
+		// start the bootnode
+		"bootnode",
+		"--nodekey", "boot.key",
+		"--addr", `:{{ Port "eth.bootnode" }}`,
+		"--verbosity", "9",
+	}
+
+	b := &BootnodeV4{}
+
+	ss := &spec.Spec{}
+	ss.WithName("v4-bootnode").
+		WithContainer("ethereum/client-go").
+		WithTag("alltools-release-1.10").
+		WithEntrypoint([]string{"/bin/sh", "-c"}).
+		WithCmd([]string{strings.Join(cmd, " ")}).
+		WithRetry(func(n spec.Node) error {
+			logs, err := n.GetLogs()
+			if err != nil {
+				return err
+			}
+			lines := strings.Split(logs, "\n")
+			if len(lines) == 0 {
+				return fmt.Errorf("not ready")
+			}
+			b.Enode = lines[0]
+			return nil
+		})
+
+	b.Spec = ss
 	return b
 }

@@ -24,6 +24,7 @@ type Spec struct {
 	Output     []io.Writer
 	Labels     map[string]string
 	User       string
+	Entrypoint []string
 }
 
 func (s *Spec) HasLabel(k, v string) bool {
@@ -55,6 +56,11 @@ func (s *Spec) WithName(name string) *Spec {
 
 func (s *Spec) WithRetry(retry func(n Node) error) *Spec {
 	s.Retry = retry
+	return s
+}
+
+func (s *Spec) WithEntrypoint(entrypoint []string) *Spec {
+	s.Entrypoint = entrypoint
 	return s
 }
 

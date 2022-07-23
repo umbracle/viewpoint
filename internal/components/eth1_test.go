@@ -4,27 +4,60 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/umbracle/ethgo"
 	"github.com/umbracle/viewpoint/internal/docker"
 	"github.com/umbracle/viewpoint/internal/server/proto"
 )
 
-func TestEth1_Multiple(t *testing.T) {
-	t.Skip()
+func TestEth1_Cluster(t *testing.T) {
+	t.Skip("fix with freeport map")
 
 	d, err := docker.NewDocker()
 	assert.NoError(t, err)
 
-	// test that multiple eth1 nodes are deployed and
-	// get assigned a different port
-	srv1, err := d.Deploy(NewEth1Server())
+	bootnodev4 := NewBootnodeV4()
+	_, err = d.Deploy(bootnodev4.Spec)
 	assert.NoError(t, err)
-	defer srv1.Stop()
 
-	srv2, err := d.Deploy(NewEth1Server())
+	genesis, key, err := NewDevGenesis()
 	assert.NoError(t, err)
-	defer srv2.Stop()
 
-	addr1 := srv1.GetAddr(proto.NodePortEth1Http)
-	addr2 := srv2.GetAddr(proto.NodePortEth1Http)
-	assert.NotEqual(t, addr1, addr2)
+	genesisRaw, err := genesis.Build()
+	assert.NoError(t, err)
+
+	// start the validators. It only starts one for now.
+	config := &proto.ExecutionConfig{
+		Bootnode: bootnodev4.Enode,
+		Genesis:  string(genesisRaw),
+		Key:      key,
+	}
+	_, err = d.Deploy(NewEth1Server(config))
+	assert.NoError(t, err)
+
+	// start n non-validator nodes
+	nonValidators := 3
+	for i := 0; i < nonValidators; i++ {
+		config := &proto.ExecutionConfig{
+			Bootnode: bootnodev4.Enode,
+			Genesis:  string(genesisRaw),
+		}
+		_, err := d.Deploy(NewEth1Server(config))
+		assert.NoError(t, err)
+	}
+}
+
+func TestEth1_BuildGenesis(t *testing.T) {
+	e := &Eth1Genesis{
+		Allocs: map[ethgo.Address]string{
+			{}:    "10000000000",
+			{0x1}: "10000000000",
+		},
+		Validators: []ethgo.Address{
+			{0x1},
+			{0x2},
+			{0x3},
+		},
+	}
+	_, err := e.Build()
+	assert.NoError(t, err)
 }
