@@ -1,5 +1,6 @@
 # 0.1.1 (Unreleased)
 
+- Enable `Altair` at genesis [[GH-19](https://github.com/umbracle/eth2-validator/issues/19)]
 - Enable `Altair` hard fork [[GH-18](https://github.com/umbracle/eth2-validator/issues/18)]
 - Add `deposit` command to create and deposit new validator accounts [[GH-16](https://github.com/umbracle/eth2-validator/issues/16)]
 - Add `tag` and `repo` flag to `node deploy` to replace default container settings [[GH-2](https://github.com/umbracle/eth2-validator/issues/2)]
