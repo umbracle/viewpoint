@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/docker/docker v20.10.16+incompatible
-	github.com/ferranbt/fastssz v0.1.0
+	github.com/ferranbt/fastssz v0.1.1
 	github.com/golang/protobuf v1.5.2
 	github.com/hashicorp/go-hclog v1.2.0
 	github.com/hashicorp/go-uuid v1.0.3

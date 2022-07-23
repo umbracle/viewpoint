@@ -101,3 +101,9 @@ message TrancheStub {
     string name = 3;
     string path = 4;
 }
+
+enum Fork {
+    Phase0 = 0;
+    Altair = 1;
+    Merge = 2;
+}

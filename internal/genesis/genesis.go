@@ -1,37 +1,34 @@
 package genesis
 
 import (
-	"encoding/hex"
 	"fmt"
 
+	ssz "github.com/ferranbt/fastssz"
 	"github.com/umbracle/ethgo"
 	"github.com/umbracle/viewpoint/internal/server/proto"
 )
 
 var minValidatorBalance = uint64(32000000000)
 
-func GenerateGenesis(eth1Block *ethgo.Block, genesisTime int64, initialValidator []*proto.Account) (*BeaconState, error) {
-	if uint64(genesisTime) < eth1Block.Timestamp {
+type Input struct {
+	Eth1Block        *ethgo.Block
+	GenesisTime      int64
+	InitialValidator []*proto.Account
+	Fork             proto.Fork
+	ForkVersion      [4]byte
+}
+
+func GenerateGenesis(input *Input) (ssz.Marshaler, error) {
+	if uint64(input.GenesisTime) < input.Eth1Block.Timestamp {
 		return nil, fmt.Errorf("low timestamp")
 	}
-	body := BeaconBlockBody{
-		RandaoReveal: make([]byte, 96),
-		Eth1Data: &Eth1Data{
-			DepositRoot: make([]byte, 32),
-			BlockHash:   make([]byte, 32),
-		},
-	}
-	bodyRoot, err := body.HashTreeRoot()
-	if err != nil {
-		return nil, err
-	}
 
-	depositRoot, _ := hex.DecodeString("d70a234731285c6804c2a4f56711ddb8c82c99740f207854891028af34e27e5e")
+	depositRoot := ethgo.HexToHash("d70a234731285c6804c2a4f56711ddb8c82c99740f207854891028af34e27e5e")
 
 	validators := []*Validator{}
 	balances := []uint64{}
 
-	for _, val := range initialValidator {
+	for _, val := range input.InitialValidator {
 		pubKey := val.Bls.PubKey()
 
 		validators = append(validators, &Validator{
@@ -55,63 +52,66 @@ func GenerateGenesis(eth1Block *ethgo.Block, genesisTime int64, initialValidator
 		return nil, err
 	}
 
-	emptyRoots := [][]byte{}
-	for i := 0; i < 8192; i++ {
-		emptyRoots = append(emptyRoots, make([]byte, 32))
-	}
-
-	randaoMixes := [][]byte{}
-	for i := 0; i < 65536; i++ {
-		randaoMixes = append(randaoMixes, make([]byte, 32))
-	}
-
 	slashings := []uint64{}
 	for i := 0; i < 8192; i++ {
 		slashings = append(slashings, 0)
 	}
 
-	state := &BeaconState{
-		GenesisTime:           uint64(genesisTime), // + 1 minute
-		GenesisValidatorsRoot: genesisValidatorRoot[:],
-		Slot:                  0,
-		Fork: &Fork{
-			Epoch:           0,
-			PreviousVersion: make([]byte, 4),
-			CurrentVersion:  make([]byte, 4),
-		},
-		LatestBlockHeader: &BeaconBlockHeader{
-			Slot:          0,
-			ProposerIndex: 0,
-			BodyRoot:      bodyRoot[:],
-			ParentRoot:    make([]byte, 32),
-			StateRoot:     make([]byte, 32),
-		},
-		BlockRoots:      emptyRoots,
-		StateRoots:      emptyRoots,
-		HistoricalRoots: [][]byte{},
-		Eth1Data: &Eth1Data{
-			DepositRoot:  depositRoot,
-			DepositCount: 0,
-			BlockHash:    eth1Block.Hash[:],
-		},
-		Eth1DataVotes:             []*Eth1Data{},
-		Eth1DepositIndex:          0,
-		Validators:                validators,
-		Balances:                  balances,
-		RandaoMixes:               randaoMixes,
-		Slashings:                 slashings,
-		PreviousEpochAttestations: []*PendingAttestation{},
-		CurrentEpochAttestations:  []*PendingAttestation{},
-		JustificationBits:         []byte{0},
-		PreviousJustifiedCheckpoint: &Checkpoint{
-			Root: make([]byte, 32),
-		},
-		CurrentJustifiedCheckpoint: &Checkpoint{
-			Root: make([]byte, 32),
-		},
-		FinalizedCheckpoint: &Checkpoint{
-			Root: make([]byte, 32),
-		},
+	fork := &Fork{
+		CurrentVersion: input.ForkVersion,
 	}
+
+	var state ssz.Marshaler
+	if input.Fork == proto.Fork_Phase0 {
+		body := BeaconBlockBodyPhase0{
+			Eth1Data: &Eth1Data{},
+		}
+		bodyRoot, err := body.HashTreeRoot()
+		if err != nil {
+			return nil, err
+		}
+
+		state = &BeaconStatePhase0{
+			GenesisTime:           uint64(input.GenesisTime), // + 1 minute
+			GenesisValidatorsRoot: genesisValidatorRoot,
+			Fork:                  fork,
+			LatestBlockHeader: &BeaconBlockHeader{
+				BodyRoot: bodyRoot,
+			},
+			Eth1Data: &Eth1Data{
+				DepositRoot: depositRoot,
+				BlockHash:   input.Eth1Block.Hash,
+			},
+			Validators: validators,
+			Balances:   balances,
+			Slashings:  slashings,
+		}
+	} else if input.Fork == proto.Fork_Altair {
+		body := BeaconBlockBodyAltair{
+			Eth1Data:      &Eth1Data{},
+			SyncAggregate: &SyncAggregate{},
+		}
+		bodyRoot, err := body.HashTreeRoot()
+		if err != nil {
+			return nil, err
+		}
+
+		state = &BeaconStateAltair{
+			GenesisTime:           uint64(input.GenesisTime), // + 1 minute
+			GenesisValidatorsRoot: genesisValidatorRoot,
+			Fork:                  fork,
+			LatestBlockHeader: &BeaconBlockHeader{
+				BodyRoot: bodyRoot,
+			},
+			Eth1Data: &Eth1Data{
+				DepositRoot: depositRoot,
+				BlockHash:   input.Eth1Block.Hash,
+			},
+			Validators: validators,
+			Balances:   balances,
+			Slashings:  slashings,
+		}
+	}
+
 	return state, nil
 }
