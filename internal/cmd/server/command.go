@@ -98,7 +98,7 @@ func (c *Command) readConfig(args []string) (*server.Config, error) {
 	config.NumGenesisValidators = numGenesisValidators
 	config.Spec.MinGenesisValidatorCount = int(minGenesisValidatorCount)
 	config.NumTranches = numTranches
-	if altair > 0 {
+	if altair >= 0 {
 		config.Spec.Altair = &altair
 	}
 

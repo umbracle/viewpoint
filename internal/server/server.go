@@ -143,6 +143,10 @@ func (s *Server) setupEth1Network() error {
 	return nil
 }
 
+var (
+	altairForkVersion = [4]byte{0x80, 0x0, 0x0, 0x70}
+)
+
 func (s *Server) setupGenesis() error {
 	// create the tranches and initial accounts
 	numAccountsPerTranche := s.config.NumGenesisValidators / s.config.NumTranches
@@ -166,7 +170,18 @@ func (s *Server) setupGenesis() error {
 		return err
 	}
 
-	state, err := genesis.GenerateGenesis(block, int64(s.config.Spec.MinGenesisTime), initialAccounts)
+	input := &genesis.Input{
+		Eth1Block:        block,
+		GenesisTime:      int64(s.config.Spec.MinGenesisTime),
+		InitialValidator: initialAccounts,
+	}
+	if altair := s.config.Spec.Altair; altair != nil && *altair == 0 {
+		// enable altair fork in genesis (TODO: Remove hardcode)
+		input.Fork = proto.Fork_Altair
+		input.ForkVersion = altairForkVersion
+	}
+
+	state, err := genesis.GenerateGenesis(input)
 	if err != nil {
 		return err
 	}

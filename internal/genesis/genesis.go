@@ -3,22 +3,24 @@ package genesis
 import (
 	"fmt"
 
+	ssz "github.com/ferranbt/fastssz"
 	"github.com/umbracle/ethgo"
 	"github.com/umbracle/viewpoint/internal/server/proto"
 )
 
 var minValidatorBalance = uint64(32000000000)
 
-func GenerateGenesis(eth1Block *ethgo.Block, genesisTime int64, initialValidator []*proto.Account) (*BeaconState, error) {
-	if uint64(genesisTime) < eth1Block.Timestamp {
+type Input struct {
+	Eth1Block        *ethgo.Block
+	GenesisTime      int64
+	InitialValidator []*proto.Account
+	Fork             proto.Fork
+	ForkVersion      [4]byte
+}
+
+func GenerateGenesis(input *Input) (ssz.Marshaler, error) {
+	if uint64(input.GenesisTime) < input.Eth1Block.Timestamp {
 		return nil, fmt.Errorf("low timestamp")
-	}
-	body := BeaconBlockBody{
-		Eth1Data: &Eth1Data{},
-	}
-	bodyRoot, err := body.HashTreeRoot()
-	if err != nil {
-		return nil, err
 	}
 
 	depositRoot := ethgo.HexToHash("d70a234731285c6804c2a4f56711ddb8c82c99740f207854891028af34e27e5e")
@@ -26,7 +28,7 @@ func GenerateGenesis(eth1Block *ethgo.Block, genesisTime int64, initialValidator
 	validators := []*Validator{}
 	balances := []uint64{}
 
-	for _, val := range initialValidator {
+	for _, val := range input.InitialValidator {
 		pubKey := val.Bls.PubKey()
 
 		validators = append(validators, &Validator{
@@ -55,30 +57,61 @@ func GenerateGenesis(eth1Block *ethgo.Block, genesisTime int64, initialValidator
 		slashings = append(slashings, 0)
 	}
 
-	state := &BeaconState{
-		GenesisTime:           uint64(genesisTime), // + 1 minute
-		GenesisValidatorsRoot: genesisValidatorRoot,
-		Slot:                  0,
-		Fork:                  &Fork{},
-		LatestBlockHeader: &BeaconBlockHeader{
-			BodyRoot: bodyRoot,
-		},
-		HistoricalRoots: [][32]byte{},
-		Eth1Data: &Eth1Data{
-			DepositRoot:  depositRoot,
-			DepositCount: 0,
-			BlockHash:    eth1Block.Hash,
-		},
-		Eth1DataVotes:               []*Eth1Data{},
-		Eth1DepositIndex:            0,
-		Validators:                  validators,
-		Balances:                    balances,
-		Slashings:                   slashings,
-		PreviousEpochAttestations:   []*PendingAttestation{},
-		CurrentEpochAttestations:    []*PendingAttestation{},
-		PreviousJustifiedCheckpoint: &Checkpoint{},
-		CurrentJustifiedCheckpoint:  &Checkpoint{},
-		FinalizedCheckpoint:         &Checkpoint{},
+	fork := &Fork{
+		CurrentVersion: input.ForkVersion,
 	}
+
+	var state ssz.Marshaler
+	if input.Fork == proto.Fork_Phase0 {
+		body := BeaconBlockBodyPhase0{
+			Eth1Data: &Eth1Data{},
+		}
+		bodyRoot, err := body.HashTreeRoot()
+		if err != nil {
+			return nil, err
+		}
+
+		state = &BeaconStatePhase0{
+			GenesisTime:           uint64(input.GenesisTime), // + 1 minute
+			GenesisValidatorsRoot: genesisValidatorRoot,
+			Fork:                  fork,
+			LatestBlockHeader: &BeaconBlockHeader{
+				BodyRoot: bodyRoot,
+			},
+			Eth1Data: &Eth1Data{
+				DepositRoot: depositRoot,
+				BlockHash:   input.Eth1Block.Hash,
+			},
+			Validators: validators,
+			Balances:   balances,
+			Slashings:  slashings,
+		}
+	} else if input.Fork == proto.Fork_Altair {
+		body := BeaconBlockBodyAltair{
+			Eth1Data:      &Eth1Data{},
+			SyncAggregate: &SyncAggregate{},
+		}
+		bodyRoot, err := body.HashTreeRoot()
+		if err != nil {
+			return nil, err
+		}
+
+		state = &BeaconStateAltair{
+			GenesisTime:           uint64(input.GenesisTime), // + 1 minute
+			GenesisValidatorsRoot: genesisValidatorRoot,
+			Fork:                  fork,
+			LatestBlockHeader: &BeaconBlockHeader{
+				BodyRoot: bodyRoot,
+			},
+			Eth1Data: &Eth1Data{
+				DepositRoot: depositRoot,
+				BlockHash:   input.Eth1Block.Hash,
+			},
+			Validators: validators,
+			Balances:   balances,
+			Slashings:  slashings,
+		}
+	}
+
 	return state, nil
 }

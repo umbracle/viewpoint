@@ -12,9 +12,14 @@ func TestGenesis(t *testing.T) {
 	accounts := proto.NewAccounts(10)
 	block := &ethgo.Block{}
 
-	state, err := GenerateGenesis(block, 10000, accounts)
+	input := &Input{
+		Eth1Block:        block,
+		GenesisTime:      10000,
+		InitialValidator: accounts,
+	}
+	state, err := GenerateGenesis(input)
 	assert.NoError(t, err)
 
-	_, err = state.HashTreeRoot()
+	_, err = state.MarshalSSZ()
 	assert.NoError(t, err)
 }
