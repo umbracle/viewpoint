@@ -28,6 +28,7 @@ func NewLighthouseBeacon(config *proto.BeaconConfig) (*spec.Spec, error) {
 		// required to allow discovery in private networks
 		"--disable-packet-filter",
 		"--enable-private-discovery",
+		"--merge",
 	}
 	spec := &spec.Spec{}
 	spec.WithLabel(proto.NodeClientLabel, proto.NodeClient_Lighthouse.String()).
@@ -54,6 +55,7 @@ func NewLighthouseValidator(config *proto.ValidatorConfig) (*spec.Spec, error) {
 		"--beacon-nodes", config.Beacon.GetAddr(proto.NodePortHttp),
 		"--testnet-dir", "/data",
 		"--init-slashing-protection",
+		"--suggested-fee-recipient", "0x6cc8dcbca744a6e4ffedb98e1d0df903b10abd21",
 	}
 	spec := &spec.Spec{}
 	spec.WithLabel(proto.NodeClientLabel, proto.NodeClient_Lighthouse.String()).

@@ -106,6 +106,9 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	if srv.config.Spec.Altair != nil {
 		logger.Info("altair fork enabled", "epoch", *srv.config.Spec.Altair)
 	}
+	if srv.config.Spec.Bellatrix != nil {
+		logger.Info("bellatrix fork enabled", "epoch", *srv.config.Spec.Bellatrix)
+	}
 
 	return srv, nil
 }
