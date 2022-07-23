@@ -7,8 +7,8 @@ type AggregateAndProof struct {
 }
 
 type Checkpoint struct {
-	Epoch uint64 `json:"epoch"`
-	Root  []byte `json:"root" ssz-size:"32"`
+	Epoch uint64   `json:"epoch"`
+	Root  [32]byte `json:"root" ssz-size:"32"`
 }
 
 type AttestationData struct {
@@ -58,9 +58,9 @@ type PendingAttestation struct {
 }
 
 type Fork struct {
-	PreviousVersion []byte `json:"previous_version" ssz-size:"4"`
-	CurrentVersion  []byte `json:"current_version" ssz-size:"4"`
-	Epoch           uint64 `json:"epoch"`
+	PreviousVersion [4]byte `json:"previous_version" ssz-size:"4"`
+	CurrentVersion  [4]byte `json:"current_version" ssz-size:"4"`
+	Epoch           uint64  `json:"epoch"`
 }
 
 type Validator struct {
@@ -95,9 +95,9 @@ type Eth1Block struct {
 }
 
 type Eth1Data struct {
-	DepositRoot  []byte `json:"deposit_root" ssz-size:"32"`
-	DepositCount uint64 `json:"deposit_count"`
-	BlockHash    []byte `json:"block_hash" ssz-size:"32"`
+	DepositRoot  [32]byte `json:"deposit_root" ssz-size:"32"`
+	DepositCount uint64   `json:"deposit_count"`
+	BlockHash    [32]byte `json:"block_hash" ssz-size:"32"`
 }
 
 type SigningRoot struct {
@@ -145,30 +145,30 @@ type Transfer struct {
 
 type BeaconState struct {
 	GenesisTime                 uint64                `json:"genesis_time"`
-	GenesisValidatorsRoot       []byte                `json:"genesis_validators_root" ssz-size:"32"`
+	GenesisValidatorsRoot       [32]byte              `json:"genesis_validators_root" ssz-size:"32"`
 	Slot                        uint64                `json:"slot"`
 	Fork                        *Fork                 `json:"fork"`
 	LatestBlockHeader           *BeaconBlockHeader    `json:"latest_block_header"`
-	BlockRoots                  [][]byte              `json:"block_roots" ssz-size:"8192,32"`
-	StateRoots                  [][]byte              `json:"state_roots" ssz-size:"8192,32"`
-	HistoricalRoots             [][]byte              `json:"historical_roots" ssz-max:"16777216" ssz-size:"?,32"`
+	BlockRoots                  [8192][32]byte        `json:"block_roots" ssz-size:"8192,32"`
+	StateRoots                  [8192][32]byte        `json:"state_roots" ssz-size:"8192,32"`
+	HistoricalRoots             [][32]byte            `json:"historical_roots" ssz-max:"16777216" ssz-size:"?,32"`
 	Eth1Data                    *Eth1Data             `json:"eth1_data"`
 	Eth1DataVotes               []*Eth1Data           `json:"eth1_data_votes" ssz-max:"2048"`
 	Eth1DepositIndex            uint64                `json:"eth1_deposit_index"`
 	Validators                  []*Validator          `json:"validators" ssz-max:"1099511627776"`
 	Balances                    []uint64              `json:"balances" ssz-max:"1099511627776"`
-	RandaoMixes                 [][]byte              `json:"randao_mixes" ssz-size:"65536,32"`
+	RandaoMixes                 [65536][32]byte       `json:"randao_mixes" ssz-size:"65536,32"`
 	Slashings                   []uint64              `json:"slashings" ssz-size:"8192"`
 	PreviousEpochAttestations   []*PendingAttestation `json:"previous_epoch_attestations" ssz-max:"4096"`
 	CurrentEpochAttestations    []*PendingAttestation `json:"current_epoch_attestations" ssz-max:"4096"`
-	JustificationBits           []byte                `json:"justification_bits" ssz-size:"1"`
+	JustificationBits           [1]byte               `json:"justification_bits" ssz-size:"1"`
 	PreviousJustifiedCheckpoint *Checkpoint           `json:"previous_justified_checkpoint"`
 	CurrentJustifiedCheckpoint  *Checkpoint           `json:"current_justified_checkpoint"`
 	FinalizedCheckpoint         *Checkpoint           `json:"finalized_checkpoint"`
 }
 
 type BeaconBlockBody struct {
-	RandaoReveal      []byte                 `json:"randao_reveal" ssz-size:"96"`
+	RandaoReveal      [96]byte               `json:"randao_reveal" ssz-size:"96"`
 	Eth1Data          *Eth1Data              `json:"eth1_data"`
 	Graffiti          [32]byte               `json:"graffiti" ssz-size:"32"`
 	ProposerSlashings []*ProposerSlashing    `json:"proposer_slashings" ssz-max:"16"`
@@ -184,11 +184,11 @@ type SignedBeaconBlockHeader struct {
 }
 
 type BeaconBlockHeader struct {
-	Slot          uint64 `json:"slot"`
-	ProposerIndex uint64 `json:"proposer_index"`
-	ParentRoot    []byte `json:"parent_root" ssz-size:"32"`
-	StateRoot     []byte `json:"state_root" ssz-size:"32"`
-	BodyRoot      []byte `json:"body_root" ssz-size:"32"`
+	Slot          uint64   `json:"slot"`
+	ProposerIndex uint64   `json:"proposer_index"`
+	ParentRoot    [32]byte `json:"parent_root" ssz-size:"32"`
+	StateRoot     [32]byte `json:"state_root" ssz-size:"32"`
+	BodyRoot      [32]byte `json:"body_root" ssz-size:"32"`
 }
 
 type SyncCommittee struct {

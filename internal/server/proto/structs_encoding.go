@@ -16,15 +16,15 @@ func (d *DepositData) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 	dst = buf
 
 	// Field (0) 'Pubkey'
-	if len(d.Pubkey) != 48 {
-		err = ssz.ErrBytesLength
+	if size := len(d.Pubkey); size != 48 {
+		err = ssz.ErrBytesLengthFn("DepositData.Pubkey", size, 48)
 		return
 	}
 	dst = append(dst, d.Pubkey...)
 
 	// Field (1) 'WithdrawalCredentials'
-	if len(d.WithdrawalCredentials) != 32 {
-		err = ssz.ErrBytesLength
+	if size := len(d.WithdrawalCredentials); size != 32 {
+		err = ssz.ErrBytesLengthFn("DepositData.WithdrawalCredentials", size, 32)
 		return
 	}
 	dst = append(dst, d.WithdrawalCredentials...)
@@ -33,8 +33,8 @@ func (d *DepositData) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 	dst = ssz.MarshalUint64(dst, d.Amount)
 
 	// Field (3) 'Signature'
-	if len(d.Signature) != 96 {
-		err = ssz.ErrBytesLength
+	if size := len(d.Signature); size != 96 {
+		err = ssz.ErrBytesLengthFn("DepositData.Signature", size, 96)
 		return
 	}
 	dst = append(dst, d.Signature...)
@@ -86,19 +86,19 @@ func (d *DepositData) HashTreeRoot() ([32]byte, error) {
 }
 
 // HashTreeRootWith ssz hashes the DepositData object with a hasher
-func (d *DepositData) HashTreeRootWith(hh *ssz.Hasher) (err error) {
+func (d *DepositData) HashTreeRootWith(hh ssz.HashWalker) (err error) {
 	indx := hh.Index()
 
 	// Field (0) 'Pubkey'
-	if len(d.Pubkey) != 48 {
-		err = ssz.ErrBytesLength
+	if size := len(d.Pubkey); size != 48 {
+		err = ssz.ErrBytesLengthFn("DepositData.Pubkey", size, 48)
 		return
 	}
 	hh.PutBytes(d.Pubkey)
 
 	// Field (1) 'WithdrawalCredentials'
-	if len(d.WithdrawalCredentials) != 32 {
-		err = ssz.ErrBytesLength
+	if size := len(d.WithdrawalCredentials); size != 32 {
+		err = ssz.ErrBytesLengthFn("DepositData.WithdrawalCredentials", size, 32)
 		return
 	}
 	hh.PutBytes(d.WithdrawalCredentials)
@@ -107,14 +107,19 @@ func (d *DepositData) HashTreeRootWith(hh *ssz.Hasher) (err error) {
 	hh.PutUint64(d.Amount)
 
 	// Field (3) 'Signature'
-	if len(d.Signature) != 96 {
-		err = ssz.ErrBytesLength
+	if size := len(d.Signature); size != 96 {
+		err = ssz.ErrBytesLengthFn("DepositData.Signature", size, 96)
 		return
 	}
 	hh.PutBytes(d.Signature)
 
 	hh.Merkleize(indx)
 	return
+}
+
+// GetTree ssz hashes the DepositData object
+func (d *DepositData) GetTree() (*ssz.Node, error) {
+	return ssz.ProofTree(d)
 }
 
 // MarshalSSZ ssz marshals the DepositMessage object
@@ -127,15 +132,15 @@ func (d *DepositMessage) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 	dst = buf
 
 	// Field (0) 'Pubkey'
-	if len(d.Pubkey) != 48 {
-		err = ssz.ErrBytesLength
+	if size := len(d.Pubkey); size != 48 {
+		err = ssz.ErrBytesLengthFn("DepositMessage.Pubkey", size, 48)
 		return
 	}
 	dst = append(dst, d.Pubkey...)
 
 	// Field (1) 'WithdrawalCredentials'
-	if len(d.WithdrawalCredentials) != 32 {
-		err = ssz.ErrBytesLength
+	if size := len(d.WithdrawalCredentials); size != 32 {
+		err = ssz.ErrBytesLengthFn("DepositMessage.WithdrawalCredentials", size, 32)
 		return
 	}
 	dst = append(dst, d.WithdrawalCredentials...)
@@ -184,19 +189,19 @@ func (d *DepositMessage) HashTreeRoot() ([32]byte, error) {
 }
 
 // HashTreeRootWith ssz hashes the DepositMessage object with a hasher
-func (d *DepositMessage) HashTreeRootWith(hh *ssz.Hasher) (err error) {
+func (d *DepositMessage) HashTreeRootWith(hh ssz.HashWalker) (err error) {
 	indx := hh.Index()
 
 	// Field (0) 'Pubkey'
-	if len(d.Pubkey) != 48 {
-		err = ssz.ErrBytesLength
+	if size := len(d.Pubkey); size != 48 {
+		err = ssz.ErrBytesLengthFn("DepositMessage.Pubkey", size, 48)
 		return
 	}
 	hh.PutBytes(d.Pubkey)
 
 	// Field (1) 'WithdrawalCredentials'
-	if len(d.WithdrawalCredentials) != 32 {
-		err = ssz.ErrBytesLength
+	if size := len(d.WithdrawalCredentials); size != 32 {
+		err = ssz.ErrBytesLengthFn("DepositMessage.WithdrawalCredentials", size, 32)
 		return
 	}
 	hh.PutBytes(d.WithdrawalCredentials)
@@ -206,6 +211,11 @@ func (d *DepositMessage) HashTreeRootWith(hh *ssz.Hasher) (err error) {
 
 	hh.Merkleize(indx)
 	return
+}
+
+// GetTree ssz hashes the DepositMessage object
+func (d *DepositMessage) GetTree() (*ssz.Node, error) {
+	return ssz.ProofTree(d)
 }
 
 // MarshalSSZ ssz marshals the SigningData object
@@ -218,15 +228,15 @@ func (s *SigningData) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 	dst = buf
 
 	// Field (0) 'ObjectRoot'
-	if len(s.ObjectRoot) != 32 {
-		err = ssz.ErrBytesLength
+	if size := len(s.ObjectRoot); size != 32 {
+		err = ssz.ErrBytesLengthFn("SigningData.ObjectRoot", size, 32)
 		return
 	}
 	dst = append(dst, s.ObjectRoot...)
 
 	// Field (1) 'Domain'
-	if len(s.Domain) != 32 {
-		err = ssz.ErrBytesLength
+	if size := len(s.Domain); size != 32 {
+		err = ssz.ErrBytesLengthFn("SigningData.Domain", size, 32)
 		return
 	}
 	dst = append(dst, s.Domain...)
@@ -269,25 +279,30 @@ func (s *SigningData) HashTreeRoot() ([32]byte, error) {
 }
 
 // HashTreeRootWith ssz hashes the SigningData object with a hasher
-func (s *SigningData) HashTreeRootWith(hh *ssz.Hasher) (err error) {
+func (s *SigningData) HashTreeRootWith(hh ssz.HashWalker) (err error) {
 	indx := hh.Index()
 
 	// Field (0) 'ObjectRoot'
-	if len(s.ObjectRoot) != 32 {
-		err = ssz.ErrBytesLength
+	if size := len(s.ObjectRoot); size != 32 {
+		err = ssz.ErrBytesLengthFn("SigningData.ObjectRoot", size, 32)
 		return
 	}
 	hh.PutBytes(s.ObjectRoot)
 
 	// Field (1) 'Domain'
-	if len(s.Domain) != 32 {
-		err = ssz.ErrBytesLength
+	if size := len(s.Domain); size != 32 {
+		err = ssz.ErrBytesLengthFn("SigningData.Domain", size, 32)
 		return
 	}
 	hh.PutBytes(s.Domain)
 
 	hh.Merkleize(indx)
 	return
+}
+
+// GetTree ssz hashes the SigningData object
+func (s *SigningData) GetTree() (*ssz.Node, error) {
+	return ssz.ProofTree(s)
 }
 
 // MarshalSSZ ssz marshals the ForkData object
@@ -300,15 +315,15 @@ func (f *ForkData) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 	dst = buf
 
 	// Field (0) 'CurrentVersion'
-	if len(f.CurrentVersion) != 4 {
-		err = ssz.ErrBytesLength
+	if size := len(f.CurrentVersion); size != 4 {
+		err = ssz.ErrBytesLengthFn("ForkData.CurrentVersion", size, 4)
 		return
 	}
 	dst = append(dst, f.CurrentVersion...)
 
 	// Field (1) 'GenesisValidatorsRoot'
-	if len(f.GenesisValidatorsRoot) != 32 {
-		err = ssz.ErrBytesLength
+	if size := len(f.GenesisValidatorsRoot); size != 32 {
+		err = ssz.ErrBytesLengthFn("ForkData.GenesisValidatorsRoot", size, 32)
 		return
 	}
 	dst = append(dst, f.GenesisValidatorsRoot...)
@@ -351,23 +366,28 @@ func (f *ForkData) HashTreeRoot() ([32]byte, error) {
 }
 
 // HashTreeRootWith ssz hashes the ForkData object with a hasher
-func (f *ForkData) HashTreeRootWith(hh *ssz.Hasher) (err error) {
+func (f *ForkData) HashTreeRootWith(hh ssz.HashWalker) (err error) {
 	indx := hh.Index()
 
 	// Field (0) 'CurrentVersion'
-	if len(f.CurrentVersion) != 4 {
-		err = ssz.ErrBytesLength
+	if size := len(f.CurrentVersion); size != 4 {
+		err = ssz.ErrBytesLengthFn("ForkData.CurrentVersion", size, 4)
 		return
 	}
 	hh.PutBytes(f.CurrentVersion)
 
 	// Field (1) 'GenesisValidatorsRoot'
-	if len(f.GenesisValidatorsRoot) != 32 {
-		err = ssz.ErrBytesLength
+	if size := len(f.GenesisValidatorsRoot); size != 32 {
+		err = ssz.ErrBytesLengthFn("ForkData.GenesisValidatorsRoot", size, 32)
 		return
 	}
 	hh.PutBytes(f.GenesisValidatorsRoot)
 
 	hh.Merkleize(indx)
 	return
+}
+
+// GetTree ssz hashes the ForkData object
+func (f *ForkData) GetTree() (*ssz.Node, error) {
+	return ssz.ProofTree(f)
 }
