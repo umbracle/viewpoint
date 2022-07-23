@@ -34,10 +34,12 @@ type Server struct {
 	// runtime to deploy containers
 	docker *docker.Docker
 
-	lock        sync.Mutex
-	logDir      *logDir
-	nodes       []spec.Node
+	lock   sync.Mutex
+	logDir *logDir
+	nodes  []spec.Node
+
 	bootnodeENR string
+	bootnodeEC  string
 
 	tranches map[uint64]*Tranche
 
@@ -78,13 +80,17 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	}
 	srv.bootnodeENR = bootnode.Enr
 
-	// deploy eth1 node
-	eth1, err := srv.deployNode(components.NewEth1Server().WithName("eth1"))
-	if err != nil {
+	// deploy bootnode v4
+	bootnodeV4 := components.NewBootnodeV4()
+	if _, err := srv.deployNode(bootnodeV4.Spec.WithName("bootnode-v4")); err != nil {
 		return nil, err
 	}
-	srv.eth1HttpAddr = eth1.GetAddr(proto.NodePortEth1Http)
-	logger.Info("eth1 server deployed", "addr", srv.eth1HttpAddr)
+	srv.bootnodeEC = bootnodeV4.Enode
+
+	// deploy EC cluster
+	if err := srv.setupEth1Network(); err != nil {
+		return nil, err
+	}
 
 	// deploy depositHandler
 	if srv.depositHandler, err = newDepositHandler(srv.eth1HttpAddr); err != nil {
@@ -109,6 +115,32 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	}
 
 	return srv, nil
+}
+
+func (s *Server) setupEth1Network() error {
+	genesis, key, err := components.NewDevGenesis()
+	if err != nil {
+		return err
+	}
+
+	genesisRaw, err := genesis.Build()
+	if err != nil {
+		return err
+	}
+
+	config := &proto.ExecutionConfig{
+		Bootnode: s.bootnodeEC,
+		Genesis:  genesisRaw,
+		Key:      key,
+	}
+	eth1, err := s.deployNode(components.NewEth1Server(config).WithName("eth1"))
+	if err != nil {
+		return err
+	}
+	s.eth1HttpAddr = eth1.GetAddr(proto.NodePortEth1Http)
+	s.logger.Info("eth1 server deployed", "addr", s.eth1HttpAddr)
+
+	return nil
 }
 
 func (s *Server) setupGenesis() error {

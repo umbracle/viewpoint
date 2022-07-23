@@ -14,7 +14,17 @@ func TestDepositHandler_Deposit(t *testing.T) {
 	d, err := docker.NewDocker()
 	assert.NoError(t, err)
 
-	node, err := d.Deploy(components.NewEth1Server())
+	genesis, key, err := components.NewDevGenesis()
+	assert.NoError(t, err)
+
+	genesisRaw, err := genesis.Build()
+	assert.NoError(t, err)
+
+	config := &proto.ExecutionConfig{
+		Genesis: genesisRaw,
+		Key:     key,
+	}
+	node, err := d.Deploy(components.NewEth1Server(config))
 	assert.NoError(t, err)
 	defer node.Stop()
 

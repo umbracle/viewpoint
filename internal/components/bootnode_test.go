@@ -12,16 +12,20 @@ func TestBootnode(t *testing.T) {
 	assert.NoError(t, err)
 
 	t.Run("V5", func(t *testing.T) {
+		bootnode := NewBootnodeV5()
 
+		_, err = d.Deploy(bootnode.Spec)
+		assert.NoError(t, err)
+
+		assert.NotEmpty(t, bootnode.Enr)
 	})
-	bootnode := NewBootnodeV5()
-
-	_, err = d.Deploy(bootnode.Spec)
-	assert.NoError(t, err)
-
-	assert.NotEmpty(t, bootnode.Enr)
 
 	t.Run("V4", func(t *testing.T) {
+		bootnode := NewBootnodeV4()
 
+		_, err = d.Deploy(bootnode.Spec)
+		assert.NoError(t, err)
+
+		assert.NotEmpty(t, bootnode.Enode)
 	})
 }
