@@ -149,8 +149,6 @@ func (d *Docker) Deploy(spec *spec.Spec) (*node, error) {
 		cmdArgs = append(cmdArgs, cleanCmd)
 	}
 
-	fmt.Println(cmdArgs)
-
 	config := &container.Config{
 		Image:  imageName,
 		Cmd:    strslice.StrSlice(cmdArgs),
@@ -212,10 +210,13 @@ func uintPtr(i uint64) *uint64 {
 
 // port ranges for each node value.
 var ports = map[proto.NodePort]*uint64{
-	proto.NodePortEth1Http:  uintPtr(8000),
-	proto.NodePortP2P:       uintPtr(5000),
-	proto.NodePortHttp:      uintPtr(7000),
-	proto.NodePortPrysmGrpc: uintPtr(4000),
+	proto.NodePortEth1Http:    uintPtr(8000),
+	proto.NodePortEth1P2P:     uintPtr(9000),
+	proto.NodePortEth1AuthRPC: uintPtr(6000),
+	proto.NodePortP2P:         uintPtr(5000),
+	proto.NodePortHttp:        uintPtr(7000),
+	proto.NodePortPrysmGrpc:   uintPtr(4000),
+	proto.NodePortBootnode:    uintPtr(3000),
 }
 
 func (n *node) execCmd(cmd string) (string, error) {

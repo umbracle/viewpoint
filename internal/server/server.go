@@ -57,12 +57,8 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		return nil, err
 	}
 
-	eth1, err := docker.Deploy(components.NewEth1Server())
-	if err != nil {
-		return nil, err
-	}
-	bootnodeSpec := components.NewBootnode()
-	bootnode, err := docker.Deploy(bootnodeSpec.Spec)
+	bootnodeV5Spec := components.NewBootnodeV5()
+	bootnodeV5, err := docker.Deploy(bootnodeV5Spec.Spec)
 	if err != nil {
 		return nil, err
 	}

@@ -4,14 +4,19 @@ import (
 	"bytes"
 	_ "embed"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sort"
 	"strings"
 	"text/template"
 
+	"github.com/hashicorp/go-uuid"
 	"github.com/umbracle/ethgo"
-	specX "github.com/umbracle/viewpoint/internal/spec"
+	"github.com/umbracle/ethgo/keystore"
+	"github.com/umbracle/ethgo/wallet"
+	"github.com/umbracle/viewpoint/internal/server/proto"
+	"github.com/umbracle/viewpoint/internal/spec"
 )
 
 var (
@@ -19,55 +24,78 @@ var (
 	genesisTmpl string
 )
 
-var genesis = `{
-	"config": {
-	  "chainId": 1337,
-	  "homesteadBlock": 0,
-	  "eip150Block": 0,
-	  "eip155Block": 0,
-	  "eip158Block": 0,
-	  "byzantiumBlock": 0,
-	  "constantinopleBlock": 0,
-	  "petersburgBlock": 0,
-	  "istanbulBlock": 0,
-	  "berlinBlock": 0,
-	  "londonBlock": 0,
-	  "mergeForkBlock": 308,
-	  "terminalTotalDifficulty": 616,
-	  "clique": {
-		"period": 2,
-		"epoch": 30000
-	  }
-	},
-	"alloc": {
-	  "0x878705ba3f8bc32fcf7f4caa1a35e72af65cf766": {"balance": "100000000000000000000000000000"}
-	},
-	"coinbase" : "0x0000000000000000000000000000000000000000",
-	"difficulty": "1",
-	"extradata": "0x0000000000000000000000000000000000000000000000000000000000000000878705ba3f8bc32fcf7f4caa1a35e72af65cf7660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-	"gasLimit" : "0xffffff",
-	"nonce" : "0x0000000000000042",
-	"mixhash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
-	"parentHash" : "0x0000000000000000000000000000000000000000000000000000000000000000",
-	"timestamp" : "0x00"
-}`
+func NewDevGenesis() (*Eth1Genesis, *wallet.Key, error) {
+	key, err := wallet.GenerateKey()
+	if err != nil {
+		return nil, nil, err
+	}
+	genesis := &Eth1Genesis{
+		Validators:     []ethgo.Address{key.Address()},
+		Period:         2,
+		MergeForkBlock: 100000,
+		TDD:            100000,
+	}
+	return genesis, key, nil
+}
 
 // NewEth1Server creates a new eth1 server with go-ethereum
-func NewEth1Server() *specX.Spec {
-	bashCmd := []string{
-		"geth init /data/genesis.json --datadir /data && geth --datadir /data",
+func NewEth1Server(config *proto.ExecutionConfig) *spec.Spec {
+	cmd := []string{
+		// init with a custom genesis
+		"geth",
+		"--datadir", "/data",
+		"init", "/data/genesis.json",
+		"&&",
+		// start the execution node
+		"geth",
+		"--datadir", "/data",
+		"--networkid", "1337",
+		"--port", `{{ Port "eth1.p2p" }}`,
+
+		"--http",
+		"--http.api", "eth,net,engine,clique",
+		"--http.port", `{{ Port "eth1.http" }}`,
+		"--authrpc.port", `{{ Port "eth1.authrpc" }}`,
+		"--discovery.dns", "\"\"", // disable dns discovery
+		// "--verbosity", "4",
+	}
+	if config.Bootnode != "" {
+		cmd = append(cmd, "--bootnodes", config.Bootnode)
+	}
+	if config.Key != nil {
+		// set the node as miner
+		minerCmd := []string{
+			"--mine",
+			"--miner.threads", "1",
+			"--miner.etherbase", config.Key.Address().String(),
+			"--miner.extradata", config.Key.Address().String(),
+			"--miner.gasprice", "16000000000",
+			"--unlock", config.Key.Address().String(),
+			"--allow-insecure-unlock",
+			"--txpool.locals", config.Key.Address().String(),
+			"--password", "/data/keystore-password.txt",
+		}
+		cmd = append(cmd, minerCmd...)
 	}
 
-	fmt.Println(strings.Join(bashCmd, " "))
-
-	spec := &specX.Spec{}
+	spec := &spec.Spec{}
 	spec.WithName("eth1").
 		WithContainer("ethereum/client-go").
-		WithTag("v1.9.25").
+		WithTag("v1.10.20").
 		WithMount("/data").
-		WithFile("/data/genesis.json", genesis).
+		WithFile("/data/genesis.json", config.Genesis).
 		WithEntrypoint([]string{"/bin/sh", "-c"}).
-		WithCmd(bashCmd)
+		WithCmd([]string{strings.Join(cmd, " ")})
+
+	if config.Key != nil {
+		keystore, err := toKeystoreV3(config.Key)
+		if err != nil {
+			panic(err)
+		}
+		spec.WithFile("/data/keystore/account.json", string(keystore))
+		spec.WithFile("/data/keystore-password.txt", defWalletPassword)
+		spec.WithLabel("clique-validator", "true")
+	}
 
 	return spec
 }
@@ -116,4 +144,27 @@ func (e *Eth1Genesis) Build() (string, error) {
 		panic(fmt.Sprintf("BUG: Failed to render template: %v", err))
 	}
 	return tpl.String(), nil
+}
+
+func toKeystoreV3(key *wallet.Key) ([]byte, error) {
+	id, _ := uuid.GenerateUUID()
+
+	// keystore does not include "address" and "id" field
+	privKey, err := key.MarshallPrivateKey()
+	if err != nil {
+		return nil, err
+	}
+	keystore, err := keystore.EncryptV3(privKey, defWalletPassword)
+	if err != nil {
+		return nil, err
+	}
+
+	var dec map[string]interface{}
+	if err := json.Unmarshal(keystore, &dec); err != nil {
+		return nil, err
+	}
+	dec["address"] = key.Address().String()
+	dec["uuid"] = id
+	dec["id"] = id
+	return json.Marshal(dec)
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"strings"
 
+	"github.com/umbracle/ethgo/wallet"
 	"github.com/umbracle/viewpoint/internal/spec"
 )
 
@@ -29,6 +30,12 @@ const (
 	// NodePortEth1Http is the http port for the eth1 node.
 	NodePortEth1Http = "eth1.http"
 
+	// NodePortEth1P2P is the p2p port for an eth1 node.
+	NodePortEth1P2P = "eth1.p2p"
+
+	// NodePortEth1AuthRPC is the p2p port for the eth1 authrpc endpoint.
+	NodePortEth1AuthRPC = "eth1.authrpc"
+
 	// NodePortP2P is the p2p port for an eth2 node.
 	NodePortP2P = "eth2.p2p"
 
@@ -37,6 +44,9 @@ const (
 
 	// NodePortPrysmGrpc is the specific prysm port for its Grpc server
 	NodePortPrysmGrpc = "eth2.prysm.grpc"
+
+	// NodePortBootnode is the port for the bootnode
+	NodePortBootnode = "eth.bootnode"
 )
 
 const (
@@ -55,6 +65,12 @@ type BeaconConfig struct {
 	Eth1       string
 	Bootnode   string
 	GenesisSSZ []byte
+}
+
+type ExecutionConfig struct {
+	Bootnode string
+	Genesis  string
+	Key      *wallet.Key
 }
 
 type CreateBeacon2 func(cfg *BeaconConfig) (*spec.Spec, error)
