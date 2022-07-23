@@ -13,13 +13,13 @@ $ go build -o viewpoint cmd/main.go
 Start the server:
 
 ```
-$ viewpoint server --name test [--genesis-time 1m] [--genesis-validator-count 10] [--num-tranches 1]
+$ viewpoint server --name test [--genesis-time 1m] [--num-genesis-validators 10] [--min-genesis-validator-count 10] [--num-tranches 1]
 2022-07-15T20:48:31.093+0200 [INFO]  viewpoint: eth1 server deployed: addr=http://127.0.0.1:8001
 2022-07-15T20:48:31.093+0200 [INFO]  viewpoint: deposit contract deployed: addr=0xB96198679b67b455FD654aEfC91bF31DC9C0886D
 2022-07-15T20:48:35.017+0200 [INFO]  viewpoint: GRPC Server started: addr=localhost:5555
 ```
 
-The `server` command starts the Viewpoint agent which handles the lifecycle of an Ethereum (post-merge) network. At startup, it generates an initial set of validator accounts (`genesis-validator-count`), splits them in tranches (`num-tranches`) and creates a `genesis.ssz` file. Each validator client will own a single tranche of accounts.
+The `server` command starts the Viewpoint agent which handles the lifecycle of an Ethereum (post-merge) network. At startup, it generates an initial set of validator accounts (`num-genesis-validators`), splits them in tranches (`num-tranches`) and creates a `genesis.ssz` file. Each validator client will own a single tranche of accounts.
 
 The deployment of the nodes is done using [Docker](https://www.docker.com/) containers which are stopped once the `server` process is over. The agent creates an `e2e-<name>` folder in the root directory where all the metadata, specs and node logs are stored.
 
@@ -52,9 +52,11 @@ The `server` command starts the Viewpoint agent.
 Flags:
 
 - `name` (`test`): Name of the execution round.
-- `genesis-validator-count` (`10`): Number of active validator accounts at genesis.
+- `num-genesis-validators` (`10`): Number of active validator accounts at genesis.
+- `min-genesis-validator-count` (`10`): Number of required active validators to start the chain at genesis.
 - `genesis-time` (`1m`): Amount of time from now when the genesis starts.
 - `num-tranches` (`1`): Number of tranches. It has to be an exact multiple of `genesis-validator-count`.
+- `altair` (`null`): Enable the `Altair` hard fork at a given epoch. Disabled by default.
 
 ### Deposit create
 
