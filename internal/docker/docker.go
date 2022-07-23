@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"text/template"
 	"time"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/hashicorp/go-hclog"
+	"github.com/umbracle/viewpoint/internal/freeport"
 	"github.com/umbracle/viewpoint/internal/server/proto"
 	"github.com/umbracle/viewpoint/internal/spec"
 )
@@ -202,34 +202,15 @@ func (n *node) Spec() *spec.Spec {
 	return n.opts
 }
 
-func uintPtr(i uint64) *uint64 {
-	return &i
-}
-
-// port ranges for each node value.
-var ports = map[proto.NodePort]*uint64{
-	proto.NodePortEth1Http:    uintPtr(8000),
-	proto.NodePortEth1P2P:     uintPtr(9000),
-	proto.NodePortEth1AuthRPC: uintPtr(6000),
-	proto.NodePortP2P:         uintPtr(5000),
-	proto.NodePortHttp:        uintPtr(7000),
-	proto.NodePortPrysmGrpc:   uintPtr(4000),
-	proto.NodePortBootnode:    uintPtr(3000),
-}
-
 func (n *node) execCmd(cmd string) (string, error) {
 	t := template.New("node_cmd")
 	t.Funcs(template.FuncMap{
 		"Port": func(name proto.NodePort) string {
-			port, ok := ports[name]
-			if !ok {
-				panic(fmt.Sprintf("Port '%s' not found", name))
-			}
 			var relPort uint64
 			if foundPort, ok := n.ports[string(name)]; ok {
 				relPort = foundPort
 			} else {
-				relPort = atomic.AddUint64(port, 1)
+				relPort = freeport.Take(name)
 				n.ports[string(name)] = relPort
 			}
 			return fmt.Sprintf("%d", relPort)

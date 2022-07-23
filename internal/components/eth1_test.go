@@ -10,8 +10,6 @@ import (
 )
 
 func TestEth1_Cluster(t *testing.T) {
-	t.Skip("fix with freeport map")
-
 	d, err := docker.NewDocker()
 	assert.NoError(t, err)
 
