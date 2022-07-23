@@ -92,13 +92,6 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		return nil, err
 	}
 
-	// deploy depositHandler
-	if srv.depositHandler, err = newDepositHandler(srv.eth1HttpAddr); err != nil {
-		return nil, err
-	}
-	logger.Info("deposit contract deployed", "addr", srv.depositHandler.deposit.String())
-	config.Spec.DepositContract = srv.depositHandler.deposit.String()
-
 	// setup the genesis.ssz file
 	if err := srv.setupGenesis(); err != nil {
 		return nil, fmt.Errorf("failed to create genesis.szz file: %v", err)
@@ -139,6 +132,13 @@ func (s *Server) setupEth1Network() error {
 	}
 	s.eth1HttpAddr = eth1.GetAddr(proto.NodePortEth1Http)
 	s.logger.Info("eth1 server deployed", "addr", s.eth1HttpAddr)
+
+	// deploy depositHandler
+	if s.depositHandler, err = newDepositHandler(s.eth1HttpAddr, key); err != nil {
+		return err
+	}
+	s.logger.Info("deposit contract deployed", "addr", s.depositHandler.deposit.String())
+	s.config.Spec.DepositContract = s.depositHandler.deposit.String()
 
 	return nil
 }

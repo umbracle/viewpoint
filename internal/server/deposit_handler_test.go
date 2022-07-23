@@ -26,9 +26,9 @@ func TestDepositHandler_Deposit(t *testing.T) {
 	}
 	node, err := d.Deploy(components.NewEth1Server(config))
 	assert.NoError(t, err)
-	defer node.Stop()
+	// defer node.Stop()
 
-	handler, err := newDepositHandler(node.GetAddr(proto.NodePortEth1Http))
+	handler, err := newDepositHandler(node.GetAddr(proto.NodePortEth1Http), key)
 	assert.NoError(t, err)
 
 	code, err := handler.Provider().Eth().GetCode(handler.deposit, ethgo.Latest)

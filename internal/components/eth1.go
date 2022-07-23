@@ -30,7 +30,10 @@ func NewDevGenesis() (*Eth1Genesis, *wallet.Key, error) {
 		return nil, nil, err
 	}
 	genesis := &Eth1Genesis{
-		Validators:     []ethgo.Address{key.Address()},
+		Validators: []ethgo.Address{key.Address()},
+		Allocs: map[ethgo.Address]string{
+			key.Address(): "100000000000000000000000000000",
+		},
 		Period:         2,
 		MergeForkBlock: 100000,
 		TDD:            100000,
@@ -78,26 +81,29 @@ func NewEth1Server(config *proto.ExecutionConfig) *spec.Spec {
 		cmd = append(cmd, minerCmd...)
 	}
 
-	spec := &spec.Spec{}
-	spec.WithName("eth1").
+	ss := &spec.Spec{}
+	ss.WithName("eth1").
 		WithContainer("ethereum/client-go").
 		WithTag("v1.10.20").
 		WithMount("/data").
 		WithFile("/data/genesis.json", config.Genesis).
 		WithEntrypoint([]string{"/bin/sh", "-c"}).
-		WithCmd([]string{strings.Join(cmd, " ")})
+		WithCmd([]string{strings.Join(cmd, " ")}).
+		WithRetry(func(n spec.Node) error {
+			return testHTTPEndpoint(n.GetAddr(proto.NodePortEth1Http))
+		})
 
 	if config.Key != nil {
 		keystore, err := toKeystoreV3(config.Key)
 		if err != nil {
 			panic(err)
 		}
-		spec.WithFile("/data/keystore/account.json", string(keystore))
-		spec.WithFile("/data/keystore-password.txt", defWalletPassword)
-		spec.WithLabel("clique-validator", "true")
+		ss.WithFile("/data/keystore/account.json", string(keystore)).
+			WithFile("/data/keystore-password.txt", defWalletPassword).
+			WithLabel("clique-validator", "true")
 	}
 
-	return spec
+	return ss
 }
 
 func testHTTPEndpoint(endpoint string) error {
