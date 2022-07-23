@@ -211,6 +211,7 @@ func (n *node) execCmd(cmd string) (string, error) {
 				relPort = foundPort
 			} else {
 				relPort = freeport.Take(name)
+				fmt.Printf("take", name, relPort)
 				n.ports[string(name)] = relPort
 			}
 			return fmt.Sprintf("%d", relPort)
