@@ -80,8 +80,6 @@ func (d *Docker) Deploy(spec *spec.Spec) (*node, error) {
 		if err != nil {
 			return nil, err
 		}
-
-		fmt.Println(tmpDir)
 		mountMap[mount] = tmpDir
 	}
 
