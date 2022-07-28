@@ -210,7 +210,11 @@ func (n *node) execCmd(cmd string) (string, error) {
 			if foundPort, ok := n.ports[string(name)]; ok {
 				relPort = foundPort
 			} else {
-				relPort = freeport.Take(name)
+				ports, err := freeport.Take(1)
+				if err != nil {
+					panic(err)
+				}
+				relPort = uint64(ports[0])
 				fmt.Println("take", name, relPort)
 				n.ports[string(name)] = relPort
 			}
