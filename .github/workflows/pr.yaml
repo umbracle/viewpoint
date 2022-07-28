@@ -13,4 +13,4 @@ jobs:
         with:
           go-version: "1.18.1"
       - name: Unit tests
-        run: go test -v ./internal/server/... -timeout 10m
+        run: go test -v ./internal/... -timeout 10m

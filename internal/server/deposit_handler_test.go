@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,6 +32,7 @@ func TestDepositHandler_Deposit(t *testing.T) {
 
 	{
 		// check the balance of the premined account
+		fmt.Println("-jsonrpc-", node.GetAddr(proto.NodePortEth1Http))
 		client, err := jsonrpc.NewClient(node.GetAddr(proto.NodePortEth1Http))
 		assert.NoError(t, err)
 

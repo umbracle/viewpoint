@@ -1,6 +1,7 @@
 package components
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -45,6 +46,7 @@ func TestEth1_Cluster(t *testing.T) {
 	}
 
 	// check the balance of the premined account
+	fmt.Println("-jsonrpc eth single test-", node.GetAddr(proto.NodePortEth1Http))
 	client, err := jsonrpc.NewClient(node.GetAddr(proto.NodePortEth1Http))
 	assert.NoError(t, err)
 
