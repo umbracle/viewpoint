@@ -33,16 +33,26 @@ func Take(n proto.NodePort) uint64 {
 	}
 
 	for {
-		if !isPortInUse(port) {
+		fmt.Println("check port", port)
+		if !isPortInUse(n, port) {
 			break
 		}
+		port += 1
 	}
 
 	ports[n] = port + 1
 	return port
 }
 
-func isPortInUse(port uint64) bool {
+func isPortInUse(n proto.NodePort, port uint64) bool {
+	if !n.IsTCP() {
+		ln, err := net.ListenUDP("udp", udpAddr("127.0.0.1", port))
+		if err != nil {
+			return true
+		}
+		ln.Close()
+		return false
+	}
 	ln, err := net.ListenTCP("tcp", tcpAddr("127.0.0.1", port))
 	if err != nil {
 		return true
@@ -53,4 +63,8 @@ func isPortInUse(port uint64) bool {
 
 func tcpAddr(ip string, port uint64) *net.TCPAddr {
 	return &net.TCPAddr{IP: net.ParseIP(ip), Port: int(port)}
+}
+
+func udpAddr(ip string, port uint64) *net.UDPAddr {
+	return &net.UDPAddr{IP: net.ParseIP(ip), Port: int(port)}
 }

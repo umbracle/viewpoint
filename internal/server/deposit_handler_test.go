@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/umbracle/ethgo"
+	"github.com/umbracle/ethgo/jsonrpc"
 	"github.com/umbracle/viewpoint/internal/components"
 	"github.com/umbracle/viewpoint/internal/docker"
 	"github.com/umbracle/viewpoint/internal/server/proto"
@@ -27,6 +28,16 @@ func TestDepositHandler_Deposit(t *testing.T) {
 	node, err := d.Deploy(components.NewEth1Server(config))
 	assert.NoError(t, err)
 	// defer node.Stop()
+
+	{
+		// check the balance of the premined account
+		client, err := jsonrpc.NewClient(node.GetAddr(proto.NodePortEth1Http))
+		assert.NoError(t, err)
+
+		balance, err := client.Eth().GetBalance(key.Address(), ethgo.Latest)
+		assert.NoError(t, err)
+		assert.Equal(t, balance.String(), genesis.Allocs[key.Address()])
+	}
 
 	handler, err := newDepositHandler(node.GetAddr(proto.NodePortEth1Http), key)
 	assert.NoError(t, err)
