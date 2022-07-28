@@ -263,6 +263,7 @@ func (n *node) GetAddr(port string) string {
 
 func (n *node) Stop() error {
 	if err := n.cli.ContainerStop(context.Background(), n.id, nil); err != nil {
+		fmt.Println("-- err -", err)
 		return fmt.Errorf("failed to stop container: %v", err)
 	}
 	return nil
