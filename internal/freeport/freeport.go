@@ -1,6 +1,4 @@
 // Copied from github.com/hashicorp/consul/sdk/freeport
-//
-// and tweaked for use by Nomad.
 package freeport
 
 import (
