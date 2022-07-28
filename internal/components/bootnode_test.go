@@ -1,6 +1,7 @@
 package components
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,9 +24,10 @@ func TestBootnode(t *testing.T) {
 	t.Run("V4", func(t *testing.T) {
 		bootnode := NewBootnodeV4()
 
-		_, err = d.Deploy(bootnode.Spec)
+		node, err := d.Deploy(bootnode.Spec)
 		assert.NoError(t, err)
 
 		assert.NotEmpty(t, bootnode.Enode)
+		fmt.Println(node.GetLogs())
 	})
 }
