@@ -33,6 +33,7 @@ func TestEth1_Cluster(t *testing.T) {
 	}
 	node, err := d.Deploy(NewEth1Server(config))
 	assert.NoError(t, err)
+	defer node.Stop()
 
 	// start n non-validator nodes
 	nonValidators := 3
@@ -41,8 +42,9 @@ func TestEth1_Cluster(t *testing.T) {
 			Bootnode: bootnodev4.Enode,
 			Genesis:  string(genesisRaw),
 		}
-		_, err := d.Deploy(NewEth1Server(config))
+		node, err := d.Deploy(NewEth1Server(config))
 		assert.NoError(t, err)
+		defer node.Stop()
 	}
 
 	// check the balance of the premined account

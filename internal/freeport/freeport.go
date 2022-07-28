@@ -10,9 +10,6 @@ import (
 
 var (
 	mu sync.Mutex
-
-	// usedPorts is the list of ports being taken already
-	usedPorts = map[uint64]struct{}{}
 )
 
 // port ranges for each node value.
@@ -36,18 +33,13 @@ func Take(n proto.NodePort) uint64 {
 	}
 
 	for {
-		if _, ok := usedPorts[port]; !ok {
-			fmt.Println("check port", port)
-			if !isPortInUse(n, port) {
-				break
-			}
-		} else {
-			fmt.Println("port", port, "already used")
+		fmt.Println("check port", port)
+		if !isPortInUse(n, port) {
+			break
 		}
 		port += 1
 	}
 
-	usedPorts[port] = struct{}{}
 	ports[n] = port + 1
 	return port
 }
