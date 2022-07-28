@@ -33,6 +33,7 @@ func TestDepositHandler_Deposit(t *testing.T) {
 	{
 		// check the balance of the premined account
 		fmt.Println("-jsonrpc-", node.GetAddr(proto.NodePortEth1Http))
+		fmt.Println(node.GetLogs())
 		client, err := jsonrpc.NewClient(node.GetAddr(proto.NodePortEth1Http))
 		assert.NoError(t, err)
 
