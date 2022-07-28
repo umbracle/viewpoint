@@ -6,6 +6,7 @@ import (
 	"net"
 	"sync"
 	"testing"
+	"time"
 )
 
 // reset will reverse the setup from initialize() and then redo it (for tests)
@@ -85,18 +86,16 @@ func TestTakeReturn(t *testing.T) {
 		if numTotal != numFree+numPending {
 			t.Fatalf("expected total (%d) and free+pending (%d) ports to match", numTotal, numFree+numPending)
 		}
-		/*
-			retry.Run(t, func(r *retry.R) {
-				numTotal, numPending, numFree = stats()
-				if numPending != 0 {
-					r.Fatalf("pending is still non zero: %d", numPending)
-				}
-				if numTotal != numFree {
-					r.Fatalf("total (%d) does not equal free (%d)", numTotal, numFree)
-				}
-			})
-		*/
-		panic("TODO")
+		retry(t, func() error {
+			numTotal, numPending, numFree = stats()
+			if numPending != 0 {
+				return fmt.Errorf("pending is still non zero: %d", numPending)
+			}
+			if numTotal != numFree {
+				return fmt.Errorf("total (%d) does not equal free (%d)", numTotal, numFree)
+			}
+			return nil
+		})
 		return numTotal
 	}
 
@@ -278,5 +277,20 @@ func TestIntervalOverlap(t *testing.T) {
 				t.Fatalf("expected %v but got %v", tc.overlap, !tc.overlap)
 			}
 		})
+	}
+}
+
+func retry(t *testing.T, fn func() error) {
+	timer := time.NewTimer(10 * time.Second)
+
+	for {
+		select {
+		case <-timer.C:
+			t.Fatal("timeout")
+		case <-time.After(1 * time.Second):
+			if err := fn(); err == nil {
+				return
+			}
+		}
 	}
 }
