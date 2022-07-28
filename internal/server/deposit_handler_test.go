@@ -3,7 +3,6 @@ package server
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/umbracle/ethgo"
@@ -29,13 +28,9 @@ func TestDepositHandler_Deposit(t *testing.T) {
 	}
 	node, err := d.Deploy(components.NewEth1Server(config))
 	assert.NoError(t, err)
-	// defer node.Stop()
+	defer node.Stop()
 
 	{
-		fmt.Println(node.GetLogs())
-		time.Sleep(5 * time.Second)
-		fmt.Println(node.GetLogs())
-
 		// check the balance of the premined account
 		fmt.Println("-jsonrpc-", node.GetAddr(proto.NodePortEth1Http))
 		client, err := jsonrpc.NewClient(node.GetAddr(proto.NodePortEth1Http))
