@@ -49,6 +49,10 @@ const (
 	NodePortBootnode = "eth.bootnode"
 )
 
+func (n NodePort) IsTCP() bool {
+	return n != NodePortBootnode
+}
+
 const (
 	NodeClientLabel = "NodeClient"
 	NodeTypeLabel   = "NodeType"

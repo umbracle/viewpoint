@@ -1,17 +1,17 @@
 package components
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/umbracle/ethgo"
+	"github.com/umbracle/ethgo/jsonrpc"
 	"github.com/umbracle/viewpoint/internal/docker"
 	"github.com/umbracle/viewpoint/internal/server/proto"
 )
 
 func TestEth1_Cluster(t *testing.T) {
-	t.Skip("fix with freeport map")
-
 	d, err := docker.NewDocker()
 	assert.NoError(t, err)
 
@@ -31,8 +31,9 @@ func TestEth1_Cluster(t *testing.T) {
 		Genesis:  string(genesisRaw),
 		Key:      key,
 	}
-	_, err = d.Deploy(NewEth1Server(config))
+	node, err := d.Deploy(NewEth1Server(config))
 	assert.NoError(t, err)
+	defer node.Stop()
 
 	// start n non-validator nodes
 	nonValidators := 3
@@ -41,9 +42,19 @@ func TestEth1_Cluster(t *testing.T) {
 			Bootnode: bootnodev4.Enode,
 			Genesis:  string(genesisRaw),
 		}
-		_, err := d.Deploy(NewEth1Server(config))
+		node, err := d.Deploy(NewEth1Server(config))
 		assert.NoError(t, err)
+		defer node.Stop()
 	}
+
+	// check the balance of the premined account
+	fmt.Println("-jsonrpc eth single test-", node.GetAddr(proto.NodePortEth1Http))
+	client, err := jsonrpc.NewClient(node.GetAddr(proto.NodePortEth1Http))
+	assert.NoError(t, err)
+
+	balance, err := client.Eth().GetBalance(key.Address(), ethgo.Latest)
+	assert.NoError(t, err)
+	assert.Equal(t, balance.String(), genesis.Allocs[key.Address()])
 }
 
 func TestEth1_BuildGenesis(t *testing.T) {
