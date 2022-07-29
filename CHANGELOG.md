@@ -1,5 +1,6 @@
 # 0.1.1 (Unreleased)
 
+- Introduce go-eth-consensus as a library [[GH-28](https://github.com/umbracle/eth2-validator/issues/28)]
 - Enable `Altair` at genesis [[GH-19](https://github.com/umbracle/eth2-validator/issues/19)]
 - Enable `Altair` hard fork [[GH-18](https://github.com/umbracle/eth2-validator/issues/18)]
 - Add `deposit` command to create and deposit new validator accounts [[GH-16](https://github.com/umbracle/eth2-validator/issues/16)]

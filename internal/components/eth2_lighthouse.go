@@ -3,7 +3,7 @@ package components
 import (
 	"encoding/hex"
 
-	"github.com/umbracle/viewpoint/internal/bls"
+	"github.com/umbracle/go-eth-consensus/bls"
 	"github.com/umbracle/viewpoint/internal/server/proto"
 	"github.com/umbracle/viewpoint/internal/spec"
 )

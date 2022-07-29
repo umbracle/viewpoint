@@ -90,9 +90,11 @@ func (a *Account) ToStub() (*AccountStub, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	pubKey := a.Bls.Pub.Serialize()
 	stub := &AccountStub{
 		PrivKey: hex.EncodeToString(priv),
-		PubKey:  hex.EncodeToString(a.Bls.Pub.Serialize()),
+		PubKey:  hex.EncodeToString(pubKey[:]),
 	}
 	return stub, nil
 }
