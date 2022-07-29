@@ -198,6 +198,10 @@ func (d *Docker) Deploy(spec *spec.Spec) (*node, error) {
 	return n, nil
 }
 
+func (n *node) GetPorts() map[string]uint64 {
+	return n.ports
+}
+
 func (n *node) Spec() *spec.Spec {
 	return n.opts
 }

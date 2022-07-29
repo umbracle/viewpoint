@@ -53,3 +53,16 @@ func (h *HttpClient) NodeIdentity() (*Identity, error) {
 	err := h.get("/eth/v1/node/identity", &out)
 	return out, err
 }
+
+type Syncing struct {
+	HeadSlot      string
+	SyncDistance  string
+	IsSyncing     bool
+	IsOptimisitic bool
+}
+
+func (h *HttpClient) Syncing() (*Syncing, error) {
+	var out *Syncing
+	err := h.get("/eth/v1/node/syncing", &out)
+	return out, err
+}

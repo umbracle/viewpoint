@@ -74,6 +74,7 @@ message Node {
     NodeType type = 2;
     NodeClient client = 3;
     map<string,string> labels = 4;
+    map<string,uint64> ports = 5;
 }
 
 enum NodeType {

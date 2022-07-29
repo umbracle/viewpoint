@@ -591,6 +591,7 @@ func specNodeToNode(n spec.Node) (*proto.Node, error) {
 		Type:   typ,
 		Client: clt,
 		Labels: spec.Labels,
+		Ports:  n.GetPorts(),
 	}
 	return resp, nil
 }
