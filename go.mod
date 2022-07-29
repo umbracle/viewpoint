@@ -12,7 +12,7 @@ require (
 	github.com/ryanuber/columnize v2.1.2+incompatible
 	github.com/stretchr/testify v1.8.0
 	github.com/umbracle/ethgo v0.1.3
-	github.com/umbracle/go-eth-consensus v0.0.0-20220729142744-8aee439e6678
+	github.com/umbracle/go-eth-consensus v0.1.0
 	google.golang.org/grpc v1.47.0
 	google.golang.org/protobuf v1.28.0
 )
