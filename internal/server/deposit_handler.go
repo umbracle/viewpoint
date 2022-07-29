@@ -11,7 +11,7 @@ import (
 	"github.com/umbracle/ethgo/contract"
 	"github.com/umbracle/ethgo/jsonrpc"
 	"github.com/umbracle/ethgo/wallet"
-	"github.com/umbracle/viewpoint/internal/deposit"
+	"github.com/umbracle/go-eth-consensus/deposit"
 	"github.com/umbracle/viewpoint/internal/server/proto"
 )
 
@@ -185,7 +185,7 @@ func (e *depositHandler) MakeDeposit(account *proto.Account) error {
 
 	depositC := deposit.NewDeposit(e.deposit, contract.WithSender(account.Ecdsa), contract.WithJsonRPC(e.Provider().Eth()))
 
-	txn, err := depositC.Deposit(data.Pubkey, data.WithdrawalCredentials, data.Signature, data.Root)
+	txn, err := depositC.Deposit(data.Pubkey[:], data.WithdrawalCredentials[:], data.Signature[:], data.Root)
 	if err != nil {
 		return err
 	}
