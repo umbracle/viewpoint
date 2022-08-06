@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/umbracle/ethgo/wallet"
-	"github.com/umbracle/viewpoint/internal/bls"
+	"github.com/umbracle/go-eth-consensus/bls"
 )
 
 type Account struct {

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/umbracle/ethgo/keystore"
-	"github.com/umbracle/viewpoint/internal/bls"
+	"github.com/umbracle/go-eth-consensus/bls"
 	"github.com/umbracle/viewpoint/internal/server/proto"
 	"github.com/umbracle/viewpoint/internal/spec"
 )
@@ -115,7 +115,7 @@ func (a *accountStore) AddKey(k *bls.Key) error {
 	pub := k.Pub.Serialize()
 
 	a.PrivateKeys = append(a.PrivateKeys, priv)
-	a.PublicKeys = append(a.PublicKeys, pub)
+	a.PublicKeys = append(a.PublicKeys, pub[:])
 
 	return nil
 }
