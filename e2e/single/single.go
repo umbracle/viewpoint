@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/umbracle/go-eth-consensus/http"
 	"github.com/umbracle/viewpoint/e2e/framework"
-	"github.com/umbracle/viewpoint/internal/http"
 	"github.com/umbracle/viewpoint/internal/server"
 	"github.com/umbracle/viewpoint/internal/server/proto"
 )
@@ -61,8 +61,8 @@ func (s *SingleDeployment) Run(f *framework.F) {
 	fmt.Println("- done -")
 	for _, node := range resp.Nodes {
 		if node.Type == proto.NodeType_Beacon {
-			client := http.NewHttpClient(node.GetAddr(proto.NodePortHttp))
-			fmt.Println(client.NodeIdentity())
+			client := http.New(node.GetAddr(proto.NodePortHttp))
+			fmt.Println(client.Node().Identity())
 		}
 	}
 }
