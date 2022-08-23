@@ -55,8 +55,8 @@ func DefaultEth2Spec() *Eth2Spec {
 		SecondsPerEth1Block:       1,
 		EpochsPerEth1VotingPeriod: 64,
 		ShardCommitteePeriod:      4,
-		SlotsPerEpoch:             12,
-		SecondsPerSlot:            3,
+		SlotsPerEpoch:             32,
+		SecondsPerSlot:            12,
 	}
 }
 

@@ -77,7 +77,7 @@ func GenerateGenesis(input *Input) (ssz.Marshaler, error) {
 
 		state = &consensus.BeaconStatePhase0{
 			GenesisTime:           uint64(input.GenesisTime),
-			GenesisValidatorsRoot: genesisValidatorRoot[:],
+			GenesisValidatorsRoot: genesisValidatorRoot,
 			Fork:                  fork,
 			LatestBlockHeader: &consensus.BeaconBlockHeader{
 				BodyRoot: bodyRoot,
@@ -102,7 +102,7 @@ func GenerateGenesis(input *Input) (ssz.Marshaler, error) {
 
 		state = &consensus.BeaconStateAltair{
 			GenesisTime:           uint64(input.GenesisTime),
-			GenesisValidatorsRoot: genesisValidatorRoot[:],
+			GenesisValidatorsRoot: genesisValidatorRoot,
 			Fork:                  fork,
 			LatestBlockHeader: &consensus.BeaconBlockHeader{
 				BodyRoot: bodyRoot,

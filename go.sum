@@ -209,6 +209,8 @@ github.com/umbracle/go-eth-consensus v0.1.0 h1:xm/0HCvFxrIHeiVfYoMJ9ZLbMe7IghWA5
 github.com/umbracle/go-eth-consensus v0.1.0/go.mod h1:qEdbWIH3Ud7mRhUlOxNfScXX1JjcqHOqP355Ei14G3s=
 github.com/umbracle/go-eth-consensus v0.1.1-0.20220804213956-353d32a1ea06 h1:1/OT5qmvr4nQBHMQnqpZJsc33iln/NLRjT7vO/lxI+E=
 github.com/umbracle/go-eth-consensus v0.1.1-0.20220804213956-353d32a1ea06/go.mod h1:qEdbWIH3Ud7mRhUlOxNfScXX1JjcqHOqP355Ei14G3s=
+github.com/umbracle/go-eth-consensus v0.1.1-0.20220806161958-5dc5ccba6075 h1:9EXK1q371lbmHYepXuOxGyP38eLxtAjhoPAvPagvOBI=
+github.com/umbracle/go-eth-consensus v0.1.1-0.20220806161958-5dc5ccba6075/go.mod h1:qEdbWIH3Ud7mRhUlOxNfScXX1JjcqHOqP355Ei14G3s=
 github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 github.com/valyala/fasthttp v1.4.0 h1:PuaTGZIw3mjYhhhbVbCQp8aciRZN9YdoB7MGX9Ko76A=

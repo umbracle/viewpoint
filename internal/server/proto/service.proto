@@ -58,7 +58,7 @@ message NodeListRequest {
 }
 
 message NodeListResponse {
-    repeated Node node = 1;
+    repeated Node nodes = 1;
 }
 
 message NodeStatusRequest {
