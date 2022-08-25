@@ -9,6 +9,7 @@ import (
 type Node interface {
 	GetAddr(port string) string
 	GetLogs() (string, error)
+	GetPorts() map[string]uint64
 	Spec() *Spec
 	Stop() error
 }

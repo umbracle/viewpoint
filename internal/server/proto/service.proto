@@ -58,7 +58,7 @@ message NodeListRequest {
 }
 
 message NodeListResponse {
-    repeated Node node = 1;
+    repeated Node nodes = 1;
 }
 
 message NodeStatusRequest {
@@ -74,6 +74,7 @@ message Node {
     NodeType type = 2;
     NodeClient client = 3;
     map<string,string> labels = 4;
+    map<string,uint64> ports = 5;
 }
 
 enum NodeType {

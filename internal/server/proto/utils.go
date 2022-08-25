@@ -2,6 +2,7 @@ package proto
 
 import (
 	"encoding/hex"
+	"fmt"
 	"strings"
 
 	"github.com/umbracle/ethgo/wallet"
@@ -48,6 +49,10 @@ const (
 	// NodePortBootnode is the port for the bootnode
 	NodePortBootnode = "eth.bootnode"
 )
+
+func (n *Node) GetAddr(name string) string {
+	return fmt.Sprintf("http://127.0.0.1:%d", n.Ports[name])
+}
 
 func (n NodePort) IsTCP() bool {
 	return n != NodePortBootnode

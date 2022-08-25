@@ -42,7 +42,7 @@ func (c *NodeListCommand) Run(args []string) int {
 		return 1
 	}
 
-	c.UI.Output(formatNodes(resp.Node))
+	c.UI.Output(formatNodes(resp.Nodes))
 	return 0
 }
 

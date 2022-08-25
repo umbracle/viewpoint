@@ -537,14 +537,14 @@ func (s *Server) NodeList(ctx context.Context, req *proto.NodeListRequest) (*pro
 	defer s.lock.Unlock()
 
 	resp := &proto.NodeListResponse{
-		Node: []*proto.Node{},
+		Nodes: []*proto.Node{},
 	}
 	for _, n := range s.nodes {
 		stub, err := specNodeToNode(n)
 		if err != nil {
 			return nil, err
 		}
-		resp.Node = append(resp.Node, stub)
+		resp.Nodes = append(resp.Nodes, stub)
 	}
 	return resp, nil
 }
@@ -591,6 +591,7 @@ func specNodeToNode(n spec.Node) (*proto.Node, error) {
 		Type:   typ,
 		Client: clt,
 		Labels: spec.Labels,
+		Ports:  n.GetPorts(),
 	}
 	return resp, nil
 }

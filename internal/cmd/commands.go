@@ -7,6 +7,7 @@ import (
 
 	"github.com/mitchellh/cli"
 	"github.com/ryanuber/columnize"
+	_ "github.com/umbracle/viewpoint/e2e"
 	"github.com/umbracle/viewpoint/internal/cmd/server"
 	"github.com/umbracle/viewpoint/internal/server/proto"
 	"google.golang.org/grpc"
@@ -59,6 +60,11 @@ func Commands() map[string]cli.CommandFactory {
 		"deposit list": func() (cli.Command, error) {
 			return &DepositListCommand{
 				Meta: meta,
+			}, nil
+		},
+		"e2e run": func() (cli.Command, error) {
+			return &E2ERunCommand{
+				UI: ui,
 			}, nil
 		},
 		"version": func() (cli.Command, error) {
