@@ -56,6 +56,7 @@ func NewEth1Server(config *proto.ExecutionConfig) *spec.Spec {
 		"--port", `{{ Port "eth1.p2p" }}`,
 
 		"--http",
+		"--http.addr", "0.0.0.0",
 		"--http.api", "eth,net,engine,clique",
 		"--http.port", `{{ Port "eth1.http" }}`,
 		"--authrpc.port", `{{ Port "eth1.authrpc" }}`,

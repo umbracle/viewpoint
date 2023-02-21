@@ -590,6 +590,7 @@ func specNodeToNode(n spec.Node) (*proto.Node, error) {
 		Name:   spec.Name,
 		Type:   typ,
 		Client: clt,
+		Ip:     n.IP(),
 		Labels: spec.Labels,
 	}
 	return resp, nil

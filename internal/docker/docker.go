@@ -19,7 +19,6 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/hashicorp/go-hclog"
-	"github.com/umbracle/viewpoint/internal/freeport"
 	"github.com/umbracle/viewpoint/internal/server/proto"
 	"github.com/umbracle/viewpoint/internal/spec"
 )
@@ -29,11 +28,11 @@ type exitResult struct {
 }
 
 type node struct {
-	cli        *client.Client
-	id         string
-	opts       *spec.Spec
-	ip         string
-	ports      map[string]uint64
+	cli  *client.Client
+	id   string
+	opts *spec.Spec
+	ip   string
+	// ports      map[string]uint64
 	waitCh     chan struct{}
 	exitResult *exitResult
 	mountMap   map[string]string
@@ -129,10 +128,10 @@ func (d *Docker) Deploy(spec *spec.Spec) (*node, error) {
 	}
 
 	n := &node{
-		cli:      d.cli,
-		opts:     spec,
-		ip:       "127.0.0.1",
-		ports:    map[string]uint64{},
+		cli:  d.cli,
+		opts: spec,
+		ip:   "127.0.0.1",
+		// ports:    map[string]uint64{},
 		waitCh:   make(chan struct{}),
 		mountMap: mountMap,
 	}
@@ -157,8 +156,7 @@ func (d *Docker) Deploy(spec *spec.Spec) (*node, error) {
 		config.Entrypoint = strslice.StrSlice(spec.Entrypoint)
 	}
 	hostConfig := &container.HostConfig{
-		Binds:       []string{},
-		NetworkMode: "host",
+		Binds: []string{},
 	}
 
 	for mount, local := range mountMap {
@@ -175,6 +173,13 @@ func (d *Docker) Deploy(spec *spec.Spec) (*node, error) {
 	if err := d.cli.ContainerStart(ctx, n.id, types.ContainerStartOptions{}); err != nil {
 		return nil, fmt.Errorf("could not start container: %v", err)
 	}
+
+	data, err := d.cli.ContainerInspect(ctx, body.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	n.ip = data.NetworkSettings.IPAddress
 
 	go n.run()
 
@@ -202,23 +207,25 @@ func (n *node) Spec() *spec.Spec {
 	return n.opts
 }
 
+var defPorts = map[string]uint64{
+	"eth.bootnode":    30303,
+	"eth1.p2p":        30303,
+	"eth1.http":       8545,
+	"eth1.authrpc":    8547,
+	"eth2.p2p":        20202,
+	"eth2.http":       9545,
+	"eth2.prysm.grpc": 9546,
+}
+
 func (n *node) execCmd(cmd string) (string, error) {
 	t := template.New("node_cmd")
 	t.Funcs(template.FuncMap{
 		"Port": func(name proto.NodePort) string {
-			var relPort uint64
-			if foundPort, ok := n.ports[string(name)]; ok {
-				relPort = foundPort
-			} else {
-				ports, err := freeport.Take(1)
-				if err != nil {
-					panic(err)
-				}
-				relPort = uint64(ports[0])
-				fmt.Println("take", name, relPort)
-				n.ports[string(name)] = relPort
+			port, ok := defPorts[string(name)]
+			if !ok {
+				panic(fmt.Errorf("port '%s' not found", name))
 			}
-			return fmt.Sprintf("%d", relPort)
+			return fmt.Sprintf("%d", port)
 		},
 	})
 
@@ -257,12 +264,12 @@ func (n *node) run() {
 	close(n.waitCh)
 }
 
-func (n *node) GetAddr(port string) string {
-	num, ok := n.ports[port]
+func (n *node) GetAddr(portName string) string {
+	port, ok := defPorts[portName]
 	if !ok {
-		panic(fmt.Sprintf("port '%s' not found", port))
+		panic(fmt.Errorf("port '%s' not found", portName))
 	}
-	return fmt.Sprintf("http://%s:%d", n.ip, num)
+	return fmt.Sprintf("http://%s:%d", n.ip, port)
 }
 
 func (n *node) Stop() error {
