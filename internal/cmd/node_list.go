@@ -52,11 +52,12 @@ func formatNodes(nodes []*proto.Node) string {
 	}
 
 	rows := make([]string, len(nodes)+1)
-	rows[0] = "Name|Type|Client"
+	rows[0] = "Name|Type|IP|Client"
 	for i, d := range nodes {
-		rows[i+1] = fmt.Sprintf("%s|%s|%s",
+		rows[i+1] = fmt.Sprintf("%s|%s|%s|%s",
 			d.Name,
 			d.Type.String(),
+			d.Ip,
 			d.Client.String(),
 		)
 	}

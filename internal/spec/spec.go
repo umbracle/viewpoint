@@ -10,6 +10,7 @@ type Node interface {
 	GetAddr(port string) string
 	GetLogs() (string, error)
 	Spec() *Spec
+	IP() string
 	Stop() error
 }
 
