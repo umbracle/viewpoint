@@ -28,11 +28,10 @@ type exitResult struct {
 }
 
 type node struct {
-	cli  *client.Client
-	id   string
-	opts *spec.Spec
-	ip   string
-	// ports      map[string]uint64
+	cli        *client.Client
+	id         string
+	opts       *spec.Spec
+	ip         string
 	waitCh     chan struct{}
 	exitResult *exitResult
 	mountMap   map[string]string
@@ -128,10 +127,8 @@ func (d *Docker) Deploy(spec *spec.Spec) (*node, error) {
 	}
 
 	n := &node{
-		cli:  d.cli,
-		opts: spec,
-		ip:   "127.0.0.1",
-		// ports:    map[string]uint64{},
+		cli:      d.cli,
+		opts:     spec,
 		waitCh:   make(chan struct{}),
 		mountMap: mountMap,
 	}
