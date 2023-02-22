@@ -1,10 +1,12 @@
 package genesis
 
 import (
+	"encoding/hex"
 	"fmt"
 
 	ssz "github.com/ferranbt/fastssz"
 	"github.com/umbracle/ethgo"
+	consensus "github.com/umbracle/go-eth-consensus"
 	"github.com/umbracle/viewpoint/internal/server/proto"
 )
 
@@ -18,22 +20,29 @@ type Input struct {
 	ForkVersion      [4]byte
 }
 
+var emptyDepositRoot = [32]byte{}
+
+func init() {
+	b, err := hex.DecodeString("d70a234731285c6804c2a4f56711ddb8c82c99740f207854891028af34e27e5e")
+	if err != nil {
+		panic(fmt.Sprintf("BUG: failed to parse empty deposit"))
+	}
+	copy(emptyDepositRoot[:], b)
+}
+
 func GenerateGenesis(input *Input) (ssz.Marshaler, error) {
 	if uint64(input.GenesisTime) < input.Eth1Block.Timestamp {
 		return nil, fmt.Errorf("low timestamp")
 	}
 
-	depositRoot := ethgo.HexToHash("d70a234731285c6804c2a4f56711ddb8c82c99740f207854891028af34e27e5e")
-
-	validators := []*Validator{}
+	validators := []*consensus.Validator{}
 	balances := []uint64{}
 
 	for _, val := range input.InitialValidator {
 		pubKey := val.Bls.PubKey()
 
-		validators = append(validators, &Validator{
-			Pubkey:                     pubKey[:],
-			WithdrawalCredentials:      make([]byte, 32),
+		validators = append(validators, &consensus.Validator{
+			Pubkey:                     pubKey,
 			ActivationEligibilityEpoch: 0,
 			ActivationEpoch:            0,
 			EffectiveBalance:           minValidatorBalance,
@@ -57,29 +66,29 @@ func GenerateGenesis(input *Input) (ssz.Marshaler, error) {
 		slashings = append(slashings, 0)
 	}
 
-	fork := &Fork{
+	fork := &consensus.Fork{
 		CurrentVersion: input.ForkVersion,
 	}
 
 	var state ssz.Marshaler
 	if input.Fork == proto.Fork_Phase0 {
-		body := BeaconBlockBodyPhase0{
-			Eth1Data: &Eth1Data{},
+		body := consensus.BeaconBlockBodyPhase0{
+			Eth1Data: &consensus.Eth1Data{},
 		}
 		bodyRoot, err := body.HashTreeRoot()
 		if err != nil {
 			return nil, err
 		}
 
-		state = &BeaconStatePhase0{
+		state = &consensus.BeaconStatePhase0{
 			GenesisTime:           uint64(input.GenesisTime), // + 1 minute
 			GenesisValidatorsRoot: genesisValidatorRoot,
 			Fork:                  fork,
-			LatestBlockHeader: &BeaconBlockHeader{
+			LatestBlockHeader: &consensus.BeaconBlockHeader{
 				BodyRoot: bodyRoot,
 			},
-			Eth1Data: &Eth1Data{
-				DepositRoot: depositRoot,
+			Eth1Data: &consensus.Eth1Data{
+				DepositRoot: emptyDepositRoot,
 				BlockHash:   input.Eth1Block.Hash,
 			},
 			Validators: validators,
@@ -87,24 +96,24 @@ func GenerateGenesis(input *Input) (ssz.Marshaler, error) {
 			Slashings:  slashings,
 		}
 	} else if input.Fork == proto.Fork_Altair {
-		body := BeaconBlockBodyAltair{
-			Eth1Data:      &Eth1Data{},
-			SyncAggregate: &SyncAggregate{},
+		body := consensus.BeaconBlockBodyAltair{
+			Eth1Data:      &consensus.Eth1Data{},
+			SyncAggregate: &consensus.SyncAggregate{},
 		}
 		bodyRoot, err := body.HashTreeRoot()
 		if err != nil {
 			return nil, err
 		}
 
-		state = &BeaconStateAltair{
+		state = &consensus.BeaconStateAltair{
 			GenesisTime:           uint64(input.GenesisTime), // + 1 minute
 			GenesisValidatorsRoot: genesisValidatorRoot,
 			Fork:                  fork,
-			LatestBlockHeader: &BeaconBlockHeader{
+			LatestBlockHeader: &consensus.BeaconBlockHeader{
 				BodyRoot: bodyRoot,
 			},
-			Eth1Data: &Eth1Data{
-				DepositRoot: depositRoot,
+			Eth1Data: &consensus.Eth1Data{
+				DepositRoot: emptyDepositRoot,
 				BlockHash:   input.Eth1Block.Hash,
 			},
 			Validators: validators,
@@ -114,4 +123,36 @@ func GenerateGenesis(input *Input) (ssz.Marshaler, error) {
 	}
 
 	return state, nil
+}
+
+type ValidatorSet struct {
+	Set []*consensus.Validator `ssz-max:"1099511627776"`
+}
+
+// HashTreeRootWith ssz hashes the ValidatorSet object with a hasher
+func (v *ValidatorSet) HashTreeRoot() (root [32]byte, err error) {
+	hh := ssz.NewHasher()
+
+	indx := hh.Index()
+
+	// Field (0) 'Set'
+	{
+		subIndx := hh.Index()
+		num := uint64(len(v.Set))
+		if num > 1099511627776 {
+			err = ssz.ErrIncorrectListSize
+			return
+		}
+		for _, elem := range v.Set {
+			if err = elem.HashTreeRootWith(hh); err != nil {
+				return
+			}
+		}
+		hh.MerkleizeWithMixin(subIndx, num, 1099511627776)
+	}
+
+	hh.Merkleize(indx)
+
+	root, err = hh.HashRoot()
+	return
 }
